@@ -618,34 +618,52 @@ public:
     ie::SoExecutableNetworkInternal LoadNetwork(const ie::CNNNetwork& network,
                                                 const std::string& deviceNameOrig,
                                                 const std::map<std::string, std::string>& config) override {
+        std::cout << "Line 1.1.1;" << std::endl;
         OV_ITT_SCOPE(FIRST_INFERENCE, ie::itt::domains::IE_LT, "Core::LoadNetwork::CNN");
+        std::cout << "Line 1.1.2;" << std::endl;
         std::string deviceName = deviceNameOrig;
+        std::cout << "Line 1.1.3;" << std::endl;
         std::map<std::string, std::string> config_with_batch = config;
+        std::cout << "Line 1.1.4;" << std::endl;
         // if auto-batching is applicable, the below function will patch the device name and config accordingly:
         ApplyAutoBatching(network, deviceName, config_with_batch);
-
+        std::cout << "Line 1.1.5;" << std::endl;
         bool forceDisableCache = config_with_batch.count(CONFIG_KEY_INTERNAL(FORCE_DISABLE_CACHE)) > 0;
+        std::cout << "Line 1.1.6;" << std::endl;
         auto parsed = parseDeviceNameIntoConfig(deviceName, config_with_batch);
+        std::cout << "Line 1.1.7;" << std::endl;
         if (forceDisableCache) {
             // remove this config key from parsed as plugins can throw unsupported exception
             parsed._config.erase(CONFIG_KEY_INTERNAL(FORCE_DISABLE_CACHE));
+            std::cout << "Line 1.1.8;" << std::endl;
         }
         auto plugin = GetCPPPluginByName(parsed._deviceName);
+        std::cout << "Line 1.1.9;" << std::endl;
         ov::SoPtr<ie::IExecutableNetworkInternal> res;
+        std::cout << "Line 1.1.10;" << std::endl;
         auto cacheManager = coreConfig.getCacheConfig()._cacheManager;
+        std::cout << "Line 1.1.11;" << std::endl;
         if (!forceDisableCache && cacheManager && DeviceSupportsImportExport(plugin)) {
             auto hash = CalculateNetworkHash(network, parsed._deviceName, plugin, parsed._config);
+            std::cout << "Line 1.1.12;" << std::endl;
             bool loadedFromCache = false;
+            std::cout << "Line 1.1.13;" << std::endl;
             auto lock = cacheGuard.getHashLock(hash);
+            std::cout << "Line 1.1.14;" << std::endl;
             res = LoadNetworkFromCache(cacheManager, hash, plugin, parsed._config, nullptr, loadedFromCache);
+            std::cout << "Line 1.1.15;" << std::endl;
             if (!loadedFromCache) {
                 res = compile_model_impl(network, plugin, parsed._config, nullptr, hash, {}, forceDisableCache);
+                std::cout << "Line 1.1.16;" << std::endl;
             } else {
                 // Temporary workaround until all plugins support caching of original model inputs
                 InferenceEngine::SetExeNetworkInfo(res._ptr, network.getFunction(), isNewAPI());
+                std::cout << "Line 1.1.17;" << std::endl;
+
             }
         } else {
             res = compile_model_impl(network, plugin, parsed._config, nullptr, {}, {}, forceDisableCache);
+            std::cout << "Line 1.1.18;" << std::endl;
         }
         return {res._ptr, res._so};
     }
@@ -1407,16 +1425,12 @@ ExecutableNetwork Core::LoadNetwork(const CNNNetwork& network, const std::map<st
 ExecutableNetwork Core::LoadNetwork(const CNNNetwork& network,
                                     const std::string& deviceName,
                                     const std::map<std::string, std::string>& config) {
-    std::cout << "Line 1.1.1;" << std::endl;
     auto valid = ov::CoreImpl::CheckStatic(network);
-    std::cout << "Line 1.1.2;" << std::endl;
     OPENVINO_ASSERT(std::get<0>(valid),
                     "InferenceEngine::Core::LoadNetwork doesn't support inputs having dynamic shapes. ",
                     "Use ov::Core::compile_model API instead. Dynamic inputs are :",
                     std::get<1>(valid));
-    std::cout << "Line 1.1.3;" << std::endl;
     auto exec = _impl->LoadNetwork(network, deviceName, config);
-    std::cout << "Line 1.1.4;" << std::endl;
     return {exec._ptr, exec._so};
 }
 

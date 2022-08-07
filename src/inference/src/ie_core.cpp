@@ -1407,12 +1407,16 @@ ExecutableNetwork Core::LoadNetwork(const CNNNetwork& network, const std::map<st
 ExecutableNetwork Core::LoadNetwork(const CNNNetwork& network,
                                     const std::string& deviceName,
                                     const std::map<std::string, std::string>& config) {
+    std::cout << "Line 1.1.1;" << std::endl;
     auto valid = ov::CoreImpl::CheckStatic(network);
+    std::cout << "Line 1.1.2;" << std::endl;
     OPENVINO_ASSERT(std::get<0>(valid),
                     "InferenceEngine::Core::LoadNetwork doesn't support inputs having dynamic shapes. ",
                     "Use ov::Core::compile_model API instead. Dynamic inputs are :",
                     std::get<1>(valid));
+    std::cout << "Line 1.1.3;" << std::endl;
     auto exec = _impl->LoadNetwork(network, deviceName, config);
+    std::cout << "Line 1.1.4;" << std::endl;
     return {exec._ptr, exec._so};
 }
 

@@ -225,16 +225,23 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
     }
 
     bool DeviceSupportsImportExport(const ov::InferencePlugin& plugin) const {
+        std::cout << "Line 1.1.1;_" << std::endl;
         auto supportedMetricKeys = plugin.get_metric(METRIC_KEY(SUPPORTED_METRICS), {}).as<std::vector<std::string>>();
+        std::cout << "Line 1.1.2;_" << std::endl;
         auto it = std::find(supportedMetricKeys.begin(), supportedMetricKeys.end(), METRIC_KEY(IMPORT_EXPORT_SUPPORT));
+        std::cout << "Line 1.1.3;_" << std::endl;
         auto supported =
             (it != supportedMetricKeys.end()) && plugin.get_metric(METRIC_KEY(IMPORT_EXPORT_SUPPORT), {}).as<bool>();
+        std::cout << "Line 1.1.4;_" << std::endl;
         if (!supported) {
             if (DeviceSupportsConfigKey(plugin, ov::device::capabilities.name())) {
+                std::cout << "Line 1.1.5;_" << std::endl;
                 supported = util::contains(plugin.get_property(ov::device::capabilities),
                                            ov::device::capability::EXPORT_IMPORT);
+                std::cout << "Line 1.1.6;_" << std::endl;
             }
         }
+        std::cout << "Line 1.1.7;_" << std::endl;
         return supported;
     }
 
@@ -359,7 +366,9 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
                                      const std::string& deviceFamily,
                                      const ov::InferencePlugin& plugin,
                                      const std::map<std::string, std::string>& config) const {
+        std::cout << "Line 1.1.8;_" << std::endl;
         auto compileConfig = CreateCompileConfig(plugin, deviceFamily, config);
+        std::cout << "Line 1.1.9;_" << std::endl;
         return ie::NetworkCompilationContext::computeHash(network, compileConfig);
     }
 
@@ -618,52 +627,36 @@ public:
     ie::SoExecutableNetworkInternal LoadNetwork(const ie::CNNNetwork& network,
                                                 const std::string& deviceNameOrig,
                                                 const std::map<std::string, std::string>& config) override {
-        std::cout << "Line 1.1.1;" << std::endl;
         OV_ITT_SCOPE(FIRST_INFERENCE, ie::itt::domains::IE_LT, "Core::LoadNetwork::CNN");
-        std::cout << "Line 1.1.2;" << std::endl;
         std::string deviceName = deviceNameOrig;
-        std::cout << "Line 1.1.3;" << std::endl;
         std::map<std::string, std::string> config_with_batch = config;
-        std::cout << "Line 1.1.4;" << std::endl;
         // if auto-batching is applicable, the below function will patch the device name and config accordingly:
         ApplyAutoBatching(network, deviceName, config_with_batch);
-        std::cout << "Line 1.1.5;" << std::endl;
         bool forceDisableCache = config_with_batch.count(CONFIG_KEY_INTERNAL(FORCE_DISABLE_CACHE)) > 0;
-        std::cout << "Line 1.1.6;" << std::endl;
         auto parsed = parseDeviceNameIntoConfig(deviceName, config_with_batch);
-        std::cout << "Line 1.1.7;" << std::endl;
         if (forceDisableCache) {
             // remove this config key from parsed as plugins can throw unsupported exception
             parsed._config.erase(CONFIG_KEY_INTERNAL(FORCE_DISABLE_CACHE));
-            std::cout << "Line 1.1.8;" << std::endl;
         }
         auto plugin = GetCPPPluginByName(parsed._deviceName);
-        std::cout << "Line 1.1.9;" << std::endl;
         ov::SoPtr<ie::IExecutableNetworkInternal> res;
-        std::cout << "Line 1.1.10;" << std::endl;
         auto cacheManager = coreConfig.getCacheConfig()._cacheManager;
         std::cout << "Line 1.1.11;" << std::endl;
         if (!forceDisableCache && cacheManager && DeviceSupportsImportExport(plugin)) {
             auto hash = CalculateNetworkHash(network, parsed._deviceName, plugin, parsed._config);
             std::cout << "Line 1.1.12;" << std::endl;
             bool loadedFromCache = false;
-            std::cout << "Line 1.1.13;" << std::endl;
             auto lock = cacheGuard.getHashLock(hash);
-            std::cout << "Line 1.1.14;" << std::endl;
             res = LoadNetworkFromCache(cacheManager, hash, plugin, parsed._config, nullptr, loadedFromCache);
-            std::cout << "Line 1.1.15;" << std::endl;
             if (!loadedFromCache) {
                 res = compile_model_impl(network, plugin, parsed._config, nullptr, hash, {}, forceDisableCache);
-                std::cout << "Line 1.1.16;" << std::endl;
             } else {
                 // Temporary workaround until all plugins support caching of original model inputs
                 InferenceEngine::SetExeNetworkInfo(res._ptr, network.getFunction(), isNewAPI());
-                std::cout << "Line 1.1.17;" << std::endl;
 
             }
         } else {
             res = compile_model_impl(network, plugin, parsed._config, nullptr, {}, {}, forceDisableCache);
-            std::cout << "Line 1.1.18;" << std::endl;
         }
         return {res._ptr, res._so};
     }

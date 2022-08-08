@@ -225,23 +225,16 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
     }
 
     bool DeviceSupportsImportExport(const ov::InferencePlugin& plugin) const {
-        std::cout << "Line 1.1.1;_" << std::endl;
         auto supportedMetricKeys = plugin.get_metric(METRIC_KEY(SUPPORTED_METRICS), {}).as<std::vector<std::string>>();
-        std::cout << "Line 1.1.2;_" << std::endl;
         auto it = std::find(supportedMetricKeys.begin(), supportedMetricKeys.end(), METRIC_KEY(IMPORT_EXPORT_SUPPORT));
-        std::cout << "Line 1.1.3;_" << std::endl;
         auto supported =
             (it != supportedMetricKeys.end()) && plugin.get_metric(METRIC_KEY(IMPORT_EXPORT_SUPPORT), {}).as<bool>();
-        std::cout << "Line 1.1.4;_" << std::endl;
         if (!supported) {
             if (DeviceSupportsConfigKey(plugin, ov::device::capabilities.name())) {
-                std::cout << "Line 1.1.5;_" << std::endl;
                 supported = util::contains(plugin.get_property(ov::device::capabilities),
                                            ov::device::capability::EXPORT_IMPORT);
-                std::cout << "Line 1.1.6;_" << std::endl;
             }
         }
-        std::cout << "Line 1.1.7;_" << std::endl;
         return supported;
     }
 
@@ -256,23 +249,35 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
                                                                  const std::string& blobID,
                                                                  const std::string& modelPath = std::string(),
                                                                  bool forceDisableCache = false) {
+        std::cout << "Line 1.1.1;_" << std::endl;
         OV_ITT_SCOPED_TASK(ov::itt::domains::IE, "CoreImpl::compile_model_impl");
+        std::cout << "Line 1.1.2;_" << std::endl;
         ov::SoPtr<ie::IExecutableNetworkInternal> execNetwork;
+        std::cout << "Line 1.1.3;_" << std::endl;
         execNetwork = context ? plugin.compile_model(network, context, parsedConfig)
                               : plugin.compile_model(network, parsedConfig);
+        std::cout << "Line 1.1.4;_" << std::endl;
         auto cacheManager = coreConfig.getCacheConfig()._cacheManager;
+        std::cout << "Line 1.1.5;_" << std::endl;
         if (!forceDisableCache && cacheManager && DeviceSupportsImportExport(plugin)) {
             try {
+                std::cout << "Line 1.1.6;_" << std::endl;
                 // need to export network for further import from "cache"
                 OV_ITT_SCOPE(FIRST_INFERENCE, ie::itt::domains::IE_LT, "Core::LoadNetwork::Export");
+                std::cout << "Line 1.1.7;_" << std::endl;
                 cacheManager->writeCacheEntry(blobID, [&](std::ostream& networkStream) {
+                    std::cout << "Line 1.1.8;_" << std::endl;
                     networkStream << ie::CompiledBlobHeader(
                         ie::GetInferenceEngineVersion()->buildNumber,
                         ie::NetworkCompilationContext::calculateFileInfo(modelPath));
+                    std::cout << "Line 1.1.9;_" << std::endl;
                     execNetwork->Export(networkStream);
+                    std::cout << "Line 1.1.10;_" << std::endl;
                 });
             } catch (...) {
+                std::cout << "Line 1.1.11;_" << std::endl;
                 cacheManager->removeCacheEntry(blobID);
+                std::cout << "Line 1.1.12;_" << std::endl;
                 throw;
             }
         }
@@ -366,9 +371,7 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
                                      const std::string& deviceFamily,
                                      const ov::InferencePlugin& plugin,
                                      const std::map<std::string, std::string>& config) const {
-        std::cout << "Line 1.1.8;_" << std::endl;
         auto compileConfig = CreateCompileConfig(plugin, deviceFamily, config);
-        std::cout << "Line 1.1.9;_" << std::endl;
         return ie::NetworkCompilationContext::computeHash(network, compileConfig);
     }
 
@@ -643,8 +646,8 @@ public:
         auto cacheManager = coreConfig.getCacheConfig()._cacheManager;
         std::cout << "Line 1.1.11;" << std::endl;
         if (!forceDisableCache && cacheManager && DeviceSupportsImportExport(plugin)) {
-            auto hash = CalculateNetworkHash(network, parsed._deviceName, plugin, parsed._config);
             std::cout << "Line 1.1.12;" << std::endl;
+            auto hash = CalculateNetworkHash(network, parsed._deviceName, plugin, parsed._config);
             bool loadedFromCache = false;
             auto lock = cacheGuard.getHashLock(hash);
             res = LoadNetworkFromCache(cacheManager, hash, plugin, parsed._config, nullptr, loadedFromCache);
@@ -656,6 +659,7 @@ public:
 
             }
         } else {
+            std::cout << "Line 1.1.13;" << std::endl;
             res = compile_model_impl(network, plugin, parsed._config, nullptr, {}, {}, forceDisableCache);
         }
         return {res._ptr, res._so};

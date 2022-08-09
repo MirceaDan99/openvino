@@ -116,6 +116,7 @@ void IInferencePlugin::SetName(const std::string& pluginName) noexcept {
 std::shared_ptr<IExecutableNetworkInternal> IInferencePlugin::LoadNetwork(
     const CNNNetwork& network,
     const std::map<std::string, std::string>& config) {
+    std::cout << "Line 1.1.1;-" << std::endl;
     return LoadNetwork(network, config, nullptr);
 }
 
@@ -132,62 +133,98 @@ std::shared_ptr<IExecutableNetworkInternal> IInferencePlugin::LoadNetwork(
     const std::map<std::string, std::string>& config,
     const std::shared_ptr<RemoteContext>& context) {
     std::shared_ptr<IExecutableNetworkInternal> impl;
-
+    std::cout << "Line 1.1.1;+" << std::endl;
     // if IR `version` is not set, suppose it's IR v10 for old API
     // it allows to use operation names in set_ / get_tensor instead of tensor_names
     auto orig_function = orig_network.getFunction();
+    std::cout << "Line 1.1.2;+" << std::endl;
     std::shared_ptr<ov::Model> function;
+    std::cout << "Line 1.1.3;+" << std::endl;
     InferenceEngine::CNNNetwork network = orig_network;
+    std::cout << "Line 1.1.4;+" << std::endl;
     if (orig_function) {
+        std::cout << "Line 1.1.5;+" << std::endl;
         function = std::make_shared<ov::Model>(orig_function->get_results(),
                                                orig_function->get_sinks(),
                                                orig_function->get_parameters(),
                                                orig_function->get_variables(),
                                                orig_function->get_friendly_name());
+        std::cout << "Line 1.1.6;+" << std::endl;
         function->get_rt_info() = orig_function->get_rt_info();
+        std::cout << "Line 1.1.7;+" << std::endl;
+
     }
     const auto& core = GetCore();
+    std::cout << "Line 1.1.8;+" << std::endl;
     if (function && core && !core->isNewAPI()) {
+        std::cout << "Line 1.1.9;+" << std::endl;
         auto& rt_info = function->get_rt_info();
+        std::cout << "Line 1.1.10;+" << std::endl;
         if (rt_info.find("version") == rt_info.end()) {
+            std::cout << "Line 1.1.11;+" << std::endl;
             rt_info["version"] = int64_t(10);
+            std::cout << "Line 1.1.12;+" << std::endl;
 
             // re-create `network` with new patched `function`
             using namespace InferenceEngine;
+            std::cout << "Line 1.1.13;+" << std::endl;
             OPENVINO_SUPPRESS_DEPRECATED_START
+            std::cout << "Line 1.1.14;+" << std::endl;
             const auto& orig_icnn = static_cast<const ICNNNetwork&>(orig_network);
+            std::cout << "Line 1.1.15;+" << std::endl;
             auto orig_impl =
                 std::dynamic_pointer_cast<const details::CNNNetworkNGraphImpl>(orig_icnn.shared_from_this());
+            std::cout << "Line 1.1.16;+" << std::endl;
             OPENVINO_ASSERT(orig_impl != nullptr,
                             "Internal: orig_impl must be castable to details::CNNNetworkNGraphImpl");
+            std::cout << "Line 1.1.17;+" << std::endl;
             auto new_impl = std::make_shared<details::CNNNetworkNGraphImpl>(function,
                                                                             orig_impl->getExtensions(),
                                                                             GetCore()->isNewAPI());
+            std::cout << "Line 1.1.18;+" << std::endl;
             network = CNNNetwork(new_impl);
+            std::cout << "Line 1.1.19;+" << std::endl;
             for (const auto& inputInfo : orig_network.getInputsInfo()) {
+                std::cout << "Line 1.1.20;+" << std::endl;
                 auto toInfo = network.getInputsInfo().at(inputInfo.first);
+                std::cout << "Line 1.1.21;+" << std::endl;
                 toInfo->setPrecision(inputInfo.second->getPrecision());
+                std::cout << "Line 1.1.22;+" << std::endl;
                 toInfo->setLayout(inputInfo.second->getLayout());
+                std::cout << "Line 1.1.23;+" << std::endl;
                 toInfo->getPreProcess() = inputInfo.second->getPreProcess();
+                std::cout << "Line 1.1.24;+" << std::endl;
             }
             for (const auto& outputInfo : orig_network.getOutputsInfo()) {
+                std::cout << "Line 1.1.25;+" << std::endl;
                 auto toInfo = network.getOutputsInfo().at(outputInfo.first);
+                std::cout << "Line 1.1.26;+" << std::endl;
                 toInfo->setPrecision(outputInfo.second->getPrecision());
+                std::cout << "Line 1.1.27;+" << std::endl;
                 toInfo->setLayout(outputInfo.second->getLayout());
+                std::cout << "Line 1.1.28;+" << std::endl;
             }
             OPENVINO_SUPPRESS_DEPRECATED_END
+            std::cout << "Line 1.1.29;+" << std::endl;
         }
     }
 
     if (nullptr == context) {
+        std::cout << "Line 1.1.30;+" << std::endl;
         impl = LoadExeNetworkImpl(network, config);
+        std::cout << "Line 1.1.31;+" << std::endl;
     } else {
+        std::cout << "Line 1.1.32;+" << std::endl;
         impl = LoadExeNetworkImpl(network, context, config);
+        std::cout << "Line 1.1.33;+" << std::endl;
     }
-
+    std::cout << "Line 1.1.34;+" << std::endl;
     SetExeNetworkInfo(impl, const_map_cast(network.getInputsInfo()), const_map_cast(network.getOutputsInfo()));
+    std::cout << "Line 1.1.35;+" << std::endl;
     if (function) {
+        std::cout << "Line 1.1.36;+" << std::endl;
         SetExeNetworkInfo(impl, function);
+        std::cout << "Line 1.1.37;+" << std::endl;
     }
 
     return impl;

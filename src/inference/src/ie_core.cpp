@@ -249,35 +249,25 @@ class CoreImpl : public ie::ICore, public std::enable_shared_from_this<ie::ICore
                                                                  const std::string& blobID,
                                                                  const std::string& modelPath = std::string(),
                                                                  bool forceDisableCache = false) {
-        std::cout << "Line 1.1.1;_" << std::endl;
         OV_ITT_SCOPED_TASK(ov::itt::domains::IE, "CoreImpl::compile_model_impl");
-        std::cout << "Line 1.1.2;_" << std::endl;
         ov::SoPtr<ie::IExecutableNetworkInternal> execNetwork;
         std::cout << "Line 1.1.3;_" << std::endl;
         execNetwork = context ? plugin.compile_model(network, context, parsedConfig)
                               : plugin.compile_model(network, parsedConfig);
         std::cout << "Line 1.1.4;_" << std::endl;
         auto cacheManager = coreConfig.getCacheConfig()._cacheManager;
-        std::cout << "Line 1.1.5;_" << std::endl;
         if (!forceDisableCache && cacheManager && DeviceSupportsImportExport(plugin)) {
             try {
-                std::cout << "Line 1.1.6;_" << std::endl;
                 // need to export network for further import from "cache"
                 OV_ITT_SCOPE(FIRST_INFERENCE, ie::itt::domains::IE_LT, "Core::LoadNetwork::Export");
-                std::cout << "Line 1.1.7;_" << std::endl;
                 cacheManager->writeCacheEntry(blobID, [&](std::ostream& networkStream) {
-                    std::cout << "Line 1.1.8;_" << std::endl;
                     networkStream << ie::CompiledBlobHeader(
                         ie::GetInferenceEngineVersion()->buildNumber,
                         ie::NetworkCompilationContext::calculateFileInfo(modelPath));
-                    std::cout << "Line 1.1.9;_" << std::endl;
                     execNetwork->Export(networkStream);
-                    std::cout << "Line 1.1.10;_" << std::endl;
                 });
             } catch (...) {
-                std::cout << "Line 1.1.11;_" << std::endl;
                 cacheManager->removeCacheEntry(blobID);
-                std::cout << "Line 1.1.12;_" << std::endl;
                 throw;
             }
         }

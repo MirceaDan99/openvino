@@ -332,12 +332,9 @@ void ov::Model::map_unordered_ops(std::function<void(Node*)> f) const {
 }
 
 const std::string& ov::Model::get_friendly_name() const {
-    std::cout << "1.1.1;^" << std::endl;
     if (m_name.empty()) {
-        std::cout << "1.1.2;^" << std::endl;
         return m_unique_name;
     }
-    std::cout << "1.1.3;^" << std::endl;
     return m_name;
 }
 

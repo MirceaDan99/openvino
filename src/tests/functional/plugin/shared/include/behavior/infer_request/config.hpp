@@ -99,7 +99,7 @@ TEST_P(InferRequestConfigTest, ReusableCPUStreamsExecutor) {
 
     {
         // Load config
-        std::map<std::string, std::string> config = {{CONFIG_KEY(EXCLUSIVE_ASYNC_REQUESTS), CONFIG_VALUE(NO)}};
+        std::map<std::string, std::string> config = {{CONFIG_KEY(EXCLUSIVE_ASYNC_REQUESTS), CONFIG_VALUE(NO)}, {"VPUX_COMPILER_TYPE", "MLIR"}};
         config.insert(configuration.begin(), configuration.end());
         if (targetDevice.find(CommonTestUtils::DEVICE_AUTO) == std::string::npos &&
             targetDevice.find(CommonTestUtils::DEVICE_MULTI) == std::string::npos &&

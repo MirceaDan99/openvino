@@ -128,11 +128,13 @@ public:
 class OVClassBaseTestP : public OVClassNetworkTest, public ::testing::WithParamInterface<std::string> {
 public:
     std::string deviceName;
+    ov::AnyMap config;
 
     void SetUp() override {
         SKIP_IF_CURRENT_TEST_IS_DISABLED();
         OVClassNetworkTest::SetUp();
         deviceName = GetParam();
+        config["VPUX_COMPILER_TYPE"] = "MLIR";
     }
 };
 

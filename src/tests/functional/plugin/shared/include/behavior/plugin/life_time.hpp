@@ -37,6 +37,7 @@ public:
     std::vector<int> order;
     std::shared_ptr<ngraph::Function> function;
     std::string targetDevice;
+    std::map<std::string, std::string> config;
 };
 
 using HoldersTestImportNetwork = HoldersTest;
@@ -50,6 +51,7 @@ public:
 
     std::shared_ptr<ngraph::Function> function;
     std::string targetDevice;
+    std::map<std::string, std::string> config;
 };
 
 }  // namespace BehaviorTestsDefinitions

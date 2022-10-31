@@ -22,6 +22,7 @@ public:
     std::string deathTestStyle;
     std::shared_ptr<ngraph::Function> function;
     std::string targetDevice;
+    ov::AnyMap config;
 };
 
 class OVHoldersTestOnImportedNetwork : public CommonTestUtils::TestsCommon,
@@ -35,6 +36,7 @@ public:
     std::shared_ptr<ngraph::Function> function;
     std::string targetDevice;
     std::string deathTestStyle;
+    ov::AnyMap config;
 };
 
 }  // namespace behavior

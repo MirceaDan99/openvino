@@ -34,12 +34,14 @@ class OVClassBasicTestP : public ::testing::Test, public ::testing::WithParamInt
 protected:
     std::string deviceName;
     std::string pluginName;
+    ov::AnyMap config;
 
 public:
     void SetUp() override {
         SKIP_IF_CURRENT_TEST_IS_DISABLED();
         std::tie(pluginName, deviceName) = GetParam();
         pluginName += IE_BUILD_POSTFIX;
+        config["VPUX_COMPILER_TYPE"] = "MLIR";
     }
 };
 
@@ -481,7 +483,7 @@ TEST_P(OVClassSeveralDevicesTestQueryNetwork, QueryNetworkActualSeveralDevicesNo
 
 TEST_P(OVClassNetworkTestP, SetAffinityWithConstantBranches) {
     ov::Core ie = createCoreWithTemplate();
-
+    std::cout << __FILE__ << "TEST_P(OVClassNetworkTestP, SetAffinityWithConstantBranches) {" << std::endl;
     try {
         std::shared_ptr<ngraph::Function> func;
         {
@@ -518,7 +520,7 @@ TEST_P(OVClassNetworkTestP, SetAffinityWithConstantBranches) {
             std::string affinity = rl_map[op->get_friendly_name()];
             op->get_rt_info()["affinity"] = affinity;
         }
-        auto exeNetwork = ie.compile_model(ksoNetwork, deviceName);
+        auto exeNetwork = ie.compile_model(ksoNetwork, deviceName, config);
     } catch (const InferenceEngine::NotImplemented& ex) {
         std::string message = ex.what();
         ASSERT_STR_CONTAINS(message, "[NOT_IMPLEMENTED]  ngraph::Function is not supported natively");
@@ -540,7 +542,7 @@ TEST_P(OVClassNetworkTestP, SetAffinityWithKSO) {
             std::string affinity = rl_map[op->get_friendly_name()];
             op->get_rt_info()["affinity"] = affinity;
         }
-        auto exeNetwork = ie.compile_model(ksoNetwork, deviceName);
+        auto exeNetwork = ie.compile_model(ksoNetwork, deviceName, config);
     } catch (const ov::Exception& ex) {
         std::string message = ex.what();
         ASSERT_STR_CONTAINS(message, "[NOT_IMPLEMENTED]  ngraph::Function is not supported natively");
@@ -890,17 +892,17 @@ using OVClassNetworkTestP = OVClassBaseTestP;
 
 TEST_P(OVClassNetworkTestP, LoadNetworkActualNoThrow) {
     ov::Core ie = createCoreWithTemplate();
-    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, deviceName));
+    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, deviceName, config));
 }
 
 TEST_P(OVClassNetworkTestP, LoadNetworkActualHeteroDeviceNoThrow) {
     ov::Core ie = createCoreWithTemplate();
-    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, CommonTestUtils::DEVICE_HETERO + std::string(":") + deviceName));
+    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, CommonTestUtils::DEVICE_HETERO + std::string(":") + deviceName, config));
 }
 
 TEST_P(OVClassNetworkTestP, LoadNetworkActualHeteroDevice2NoThrow) {
     ov::Core ie = createCoreWithTemplate();
-    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, CommonTestUtils::DEVICE_HETERO, ov::device::priorities(deviceName)));
+    OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, CommonTestUtils::DEVICE_HETERO, ov::device::priorities(deviceName), *config.find("VPUX_COMPILER_TYPE")));
 }
 
 TEST_P(OVClassNetworkTestP, LoadNetworkActualHeteroDeviceUsingDevicePropertiesNoThrow) {
@@ -909,7 +911,7 @@ TEST_P(OVClassNetworkTestP, LoadNetworkActualHeteroDeviceUsingDevicePropertiesNo
         CommonTestUtils::DEVICE_HETERO,
         ov::device::priorities(deviceName),
         ov::device::properties(deviceName,
-            ov::enable_profiling(true))));
+            ov::enable_profiling(true)), *config.find("VPUX_COMPILER_TYPE")));
 }
 
 TEST_P(OVClassNetworkTestP, LoadNetworkCreateDefaultExecGraphResult) {
@@ -978,7 +980,7 @@ TEST_P(OVClassLoadNetworkTest, LoadNetworkHETEROWithDeviceIDNoThrow) {
             GTEST_SKIP();
         std::string heteroDevice =
                 CommonTestUtils::DEVICE_HETERO + std::string(":") + deviceName + "." + deviceIDs[0] + "," + deviceName;
-        OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, heteroDevice));
+        OV_ASSERT_NO_THROW(ie.compile_model(actualNetwork, heteroDevice, config));
     } else {
         GTEST_SKIP();
     }
@@ -991,7 +993,7 @@ TEST_P(OVClassLoadNetworkTest, LoadNetworkWithDeviceIDNoThrow) {
         auto deviceIDs = ie.get_property(deviceName, ov::available_devices);
         if (deviceIDs.empty())
             GTEST_SKIP();
-        OV_ASSERT_NO_THROW(ie.compile_model(simpleNetwork, deviceName + "." + deviceIDs[0]));
+        OV_ASSERT_NO_THROW(ie.compile_model(simpleNetwork, deviceName + "." + deviceIDs[0], config));
     } else {
         GTEST_SKIP();
     }

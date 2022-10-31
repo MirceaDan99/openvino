@@ -30,13 +30,14 @@ namespace BehaviorTestsDefinitions {
         SKIP_IF_CURRENT_TEST_IS_DISABLED();
         std::tie(targetDevice, order) = this->GetParam();
         function = ngraph::builder::subgraph::makeConvPoolRelu();
+        config["VPUX_COMPILER_TYPE"] = "MLIR";
     }
 
     void release_order_test(std::vector<int> order, const std::string &deviceName,
-                            std::shared_ptr<ngraph::Function> function) {
+                            std::shared_ptr<ngraph::Function> function, std::map<std::string, std::string> config) {
         InferenceEngine::CNNNetwork cnnNet(function);
         InferenceEngine::Core core = BehaviorTestsUtils::createIECoreWithTemplate();
-        auto exe_net = core.LoadNetwork(cnnNet, deviceName);
+        auto exe_net = core.LoadNetwork(cnnNet, deviceName, config);
         auto request = exe_net.CreateInferRequest();
         std::vector<InferenceEngine::VariableState> states;
         try {
@@ -78,7 +79,7 @@ namespace BehaviorTestsDefinitions {
 #else
         if (sigsetjmp(CommonTestUtils::env, 1) == 0) {
 #endif
-            EXPECT_NO_THROW(release_order_test(order, targetDevice, function));
+            EXPECT_NO_THROW(release_order_test(order, targetDevice, function, config));
         } else {
             IE_THROW() << "Crash happens";
         }
@@ -94,7 +95,7 @@ namespace BehaviorTestsDefinitions {
 #else
         if (sigsetjmp(CommonTestUtils::env, 1) == 0) {
 #endif
-            EXPECT_NO_THROW(release_order_test(order, targetDevice, function));
+            EXPECT_NO_THROW(release_order_test(order, targetDevice, function, config));
         } else {
             IE_THROW() << "Crash happens";
         }
@@ -108,6 +109,7 @@ namespace BehaviorTestsDefinitions {
         SKIP_IF_CURRENT_TEST_IS_DISABLED();
         targetDevice = this->GetParam();
         function = ngraph::builder::subgraph::makeConvPoolRelu();
+        config["VPUX_COMPILER_TYPE"] = "MLIR";
     }
 
     TEST_P(HoldersTestOnImportedNetwork, CreateRequestWithCoreRemoved) {
@@ -115,10 +117,10 @@ namespace BehaviorTestsDefinitions {
         InferenceEngine::Core core = BehaviorTestsUtils::createIECoreWithTemplate();
         std::stringstream stream;
         {
-            auto exe_net = core.LoadNetwork(cnnNet, targetDevice);
+            auto exe_net = core.LoadNetwork(cnnNet, targetDevice, config);
             exe_net.Export(stream);
         }
-        auto exe_net = core.ImportNetwork(stream, targetDevice);
+        auto exe_net = core.ImportNetwork(stream, targetDevice, config);
         core = InferenceEngine::Core();
         auto request = exe_net.CreateInferRequest();
     }

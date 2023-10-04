@@ -117,7 +117,7 @@ TEST_P(InferRequestConfigTest, ReusableCPUStreamsExecutor) {
         // Load CNNNetwork to target plugins
         execNet = ie->LoadNetwork(cnnNet, target_device, config);
         execNet.CreateInferRequest();
-        if (target_device == ov::test::utils::DEVICE_KEEMBAY) {
+        if (target_device == ov::test::utils::DEVICE_NPU) {
             ASSERT_EQ(1u, ov::threading::executor_manager()->get_executors_number());
             ASSERT_EQ(0u, ov::threading::executor_manager()->get_idle_cpu_streams_executors_number());
         } else if ((target_device == ov::test::utils::DEVICE_AUTO) ||

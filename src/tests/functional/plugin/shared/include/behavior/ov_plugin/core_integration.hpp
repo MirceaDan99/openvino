@@ -396,7 +396,7 @@ TEST_P(OVClassBasicTestP, compile_model_with_device_with_property_unicode) {
 }
 #endif
 
-#ifdef OPENVINO_ENABLE_UNICODE_PATH_SUPPOR
+#ifdef OPENVINO_ENABLE_UNICODE_PATH_SUPPORT
 TEST_P(OVClassBasicTestP, smoke_registerPluginsXMLUnicodePath) {
     const std::string pluginXML = getPluginFile();
 
@@ -406,7 +406,29 @@ TEST_P(OVClassBasicTestP, smoke_registerPluginsXMLUnicodePath) {
         std::wstring pluginsXmlW = ov::test::utils::addUnicodePostfixToPath(pluginXML, postfix);
 
         try {
-            bool is_copy_successfully;
+
+            std::wstring unicode_path = ov::test::utils::stringToWString(ov::test::utils::getExecutableDirectory()+"/") + postfix;
+            
+            CreateDirectoryW(unicode_path.c_str(), NULL);
+
+            std::string level0_lib = std::string("npu_level_zero_backend") + OV_BUILD_POSTFIX;
+            std::string level0_libPath = ov::util::make_plugin_library_name(ov::test::utils::getExecutableDirectory(), level0_lib);
+            std::string pluginNamePath = ov::util::make_plugin_library_name(ov::test::utils::getExecutableDirectory(), pluginName);
+            std::wstring pluginNameUnicodePath = ov::test::utils::stringToWString(ov::util::make_plugin_library_name(::ov::util::wstring_to_string(unicode_path), pluginName));
+            std::wstring level0_libUnicodePath = ov::test::utils::stringToWString(ov::util::make_plugin_library_name(::ov::util::wstring_to_string(unicode_path), level0_lib));
+
+            bool is_copy_successfully = ov::test::utils::copyFile(pluginNamePath, pluginNameUnicodePath);
+            if (!is_copy_successfully) {
+                FAIL() << "Unable to copy from '" << pluginNamePath << "' to '"
+                       << pluginNameUnicodePath << "'";
+            }
+
+            is_copy_successfully = ov::test::utils::copyFile(level0_libPath, level0_libUnicodePath);
+            if (!is_copy_successfully) {
+                FAIL() << "Unable to copy from '" << level0_libPath << "' to '"
+                       << level0_libUnicodePath << "'";
+            }
+
             is_copy_successfully = ov::test::utils::copyFile(pluginXML, pluginsXmlW);
             if (!is_copy_successfully) {
                 FAIL() << "Unable to copy from '" << pluginXML << "' to '"
@@ -424,6 +446,14 @@ TEST_P(OVClassBasicTestP, smoke_registerPluginsXMLUnicodePath) {
             GTEST_COUT << "Plugin created " << testIndex << std::endl;
 
             OV_ASSERT_NO_THROW(ie.register_plugin(pluginName, "TEST_DEVICE"));
+            OV_ASSERT_NO_THROW(ie.register_plugin(::ov::util::wstring_to_string(pluginNameUnicodePath), "NPU_UNICODE"));
+            OV_ASSERT_NO_THROW(ie.get_versions("NPU_UNICODE"));
+            auto devices = ie.get_available_devices();
+            if (std::find_if(devices.begin(), devices.end(), [](std::string device){
+                return device.find("NPU_UNICODE") != std::string::npos;
+            }) == devices.end()) {
+                FAIL() << "NPU_UNICODE was not found within registered plugins.";
+            }
             OV_ASSERT_NO_THROW(ie.get_versions("TEST_DEVICE"));
             GTEST_COUT << "Plugin registered and created " << testIndex << std::endl;
 

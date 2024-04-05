@@ -754,9 +754,9 @@ NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compileIR(const st
 
     // Get blob size first
     size_t blobSize = -1;
-
+    _graphMutex.lock();
     result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
-
+    _graphMutex.unlock();
     OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
                     "Failed to compile network. L0 pfnGetNativeBinary get blob size",
                     " result: ",

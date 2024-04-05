@@ -10,6 +10,8 @@
 #include "iexternal_compiler.hpp"
 #include "intel_npu/utils/logger/logger.hpp"
 
+#include <mutex>
+
 namespace intel_npu {
 namespace driverCompilerAdapter {
 
@@ -187,6 +189,7 @@ private:
 
     TableExtension* _graphDdiTableExt = nullptr;
     mutable Logger _logger;
+    mutable std::mutex _graphMutex;
 };
 
 template <typename TableExtension>

@@ -71,7 +71,6 @@ private:
     std::unordered_map<std::string, ArgumentDescriptor> _outputs_desc_map;
 
     std::array<std::shared_ptr<CommandQueue>, stage::COUNT> _command_queues;
-    std::mutex _zeroExecutorMutex;
 };
 
 }  // namespace intel_npu

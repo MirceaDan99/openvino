@@ -67,6 +67,7 @@ ZeroExecutor::ZeroExecutor(const std::shared_ptr<const ZeroInitStructsHolder>& i
                          _networkDesc->compiledNetwork.data(),
                          nullptr};
     
+    static std::mutex _zeroExecutorMutex;
     _zeroExecutorMutex.lock();
     zeroUtils::throwOnFail(
         "pfnCreate",

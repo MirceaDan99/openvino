@@ -25,19 +25,11 @@ public:
     static void runParallel(std::function<void(void)> func,
                             const unsigned int iterations = 100,
                             const unsigned int threadsNum = 8) {
-        size_t threadNum = 1;
         std::vector<std::thread> threads(threadsNum);
         for (auto& thread : threads) {
             thread = std::thread([&]() {
-                threadNum++;
                 for (unsigned int i = 0; i < iterations; ++i) {
-                    try {
-                        func();
-                    } catch (ov::Exception e) {
-                        GTEST_FAIL() << "Exception occurred on thread " << threadNum << ": " << std::endl << e.what();
-                    } catch (...) {
-                        GTEST_FAIL() << "Unkown exception occurred on thread " << threadNum;
-                    }
+                    func();
                 }
             });
         }

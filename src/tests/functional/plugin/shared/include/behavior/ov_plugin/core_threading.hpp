@@ -32,10 +32,10 @@ public:
                     try {
                         func();
                     } catch (ov::Exception e) {
-                        std::cerr << "Exception occured:" << std::endl << e.what();
+                        std::cout << "Exception occured:" << std::endl << e.what();
                         std::exit(EXIT_FAILURE);
                     } catch (...) {
-                        std::cerr << "Unknown exception occurred!" << std::endl;
+                        std::cout << "Unknown exception occurred!" << std::endl;
                         std::exit(EXIT_FAILURE);
                     }
                 }

@@ -29,15 +29,7 @@ public:
         for (auto& thread : threads) {
             thread = std::thread([&]() {
                 for (unsigned int i = 0; i < iterations; ++i) {
-                    try {
-                        func();
-                    } catch (ov::Exception e) {
-                        std::cout << "Exception occurred:" << std::endl << e.what();
-                        std::exit(EXIT_FAILURE);
-                    } catch (...) {
-                        std::cout << "Unkown exception occurred!" << std::endl;
-                        std::exit(EXIT_FAILURE);
-                    }
+                    OV_ASSERT_NO_THROW(func());
                 }
             });
         }

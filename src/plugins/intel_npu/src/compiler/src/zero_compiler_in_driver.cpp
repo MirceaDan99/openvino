@@ -694,11 +694,7 @@ ze_result_t LevelZeroCompilerInDriver<TableExtension>::createGraph(const ze_grap
                               flags};
 
     // Create querynetwork handle
-    static std::mutex _graphMutex;
-    _graphMutex.lock();
-    auto res = _graphDdiTableExt->pfnCreate2(_context, _deviceHandle, &desc, graph);
-    _graphMutex.unlock();
-    return res;
+    return _graphDdiTableExt->pfnCreate2(_context, _deviceHandle, &desc, graph);
 }
 
 template <typename TableExtension>
@@ -758,10 +754,9 @@ NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compileIR(const st
 
     // Get blob size first
     size_t blobSize = -1;
-    static std::mutex _graphMutex;
-    _graphMutex.lock();
+
     result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
-    _graphMutex.unlock();
+
     OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
                     "Failed to compile network. L0 pfnGetNativeBinary get blob size",
                     " result: ",

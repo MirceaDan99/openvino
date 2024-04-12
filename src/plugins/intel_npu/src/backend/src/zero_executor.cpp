@@ -66,13 +66,10 @@ ZeroExecutor::ZeroExecutor(const std::shared_ptr<const ZeroInitStructsHolder>& i
                          _networkDesc->compiledNetwork.size(),
                          _networkDesc->compiledNetwork.data(),
                          nullptr};
-    
-    static std::mutex _zeroExecutorMutex;
-    _zeroExecutorMutex.lock();
     zeroUtils::throwOnFail(
         "pfnCreate",
         _graph_ddi_table_ext->pfnCreate(_initStructs->getContext(), _initStructs->getDevice(), &desc, &_graph));
-    _zeroExecutorMutex.unlock();
+
     OV_ITT_TASK_NEXT(ZERO_EXECUTOR_GRAPH, "pfnGetProperties");
     zeroUtils::throwOnFail("pfnGetProperties", _graph_ddi_table_ext->pfnGetProperties(_graph, &_props));
 

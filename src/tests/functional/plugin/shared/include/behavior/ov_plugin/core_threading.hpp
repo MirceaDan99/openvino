@@ -34,10 +34,13 @@ public:
             });
         }
 
-        for (auto& thread : threads) {
-            if (thread.joinable()) {
-                thread.join();
+        try {
+            for (auto& thread : threads) {
+                if (thread.joinable())
+                    thread.join();
             }
+        } catch (...) {
+            GTEST_FAIL() << "Unknown exception occurred!";
         }
     }
 

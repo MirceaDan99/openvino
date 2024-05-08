@@ -198,6 +198,8 @@ typedef enum {
     F8E8M0,          //!< f8e8m0 element type
 } ov_element_type_e;
 
+typedef char* (*crypto_func)(const char*, const size_t, size_t*);
+
 /**
  * @brief Print the error info.
  * @ingroup ov_base_c_api

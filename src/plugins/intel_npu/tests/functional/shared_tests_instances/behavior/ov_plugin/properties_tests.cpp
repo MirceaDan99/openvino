@@ -1,11 +1,12 @@
-// Copyright (C) 2018-2024 Intel Corporation
+//
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "behavior/ov_plugin/properties_tests.hpp"
 #include <array>
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "intel_npu/al/config/common.hpp"
 #include "npu_private_properties.hpp"
 #include "openvino/runtime/intel_cpu/properties.hpp"
@@ -41,6 +42,10 @@ const std::vector<ov::AnyMap> CorrectPluginMutableProperties = {
         {{ov::log::level.name(), ov::log::Level::ERR}},
         {{ov::device::id.name(), removeDeviceNameOnlyID(ov::test::utils::getTestsPlatformFromEnvironmentOr("3700"))}},
         {{ov::enable_profiling.name(), true}},
+};
+
+const std::vector<ov::AnyMap> driverCorrectPluginMutableProperties = {
+        {{ov::intel_npu::compiler_type.name(), ov::intel_npu::CompilerType::DRIVER}},
 };
 
 const std::vector<ov::AnyMap> CorrectPluginDefaultMutableProperties = {
@@ -90,7 +95,7 @@ const std::vector<ov::AnyMap> IncorrectImmutableProperties = {
         {{ov::range_for_streams.name(), std::tuple<unsigned int, unsigned int>{1u, 4u}}},
         {{ov::device::uuid.name(),
           ov::device::UUID{std::array<uint8_t, ov::device::UUID::MAX_UUID_SIZE>{
-                  0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x12, 0x34, 0x56, 0x67}}}},
+                  0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x09, 0x87, 0x65, 0x43, 0x21, 0xFE, 0xDC, 0xBA}}}},
         {{ov::device::architecture.name(), "3720"}},
         {{ov::device::full_name.name(), "NPU.3700"}}};  // namespace
 
@@ -114,6 +119,12 @@ INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVPropertiesTests,
                          ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
                                             ::testing::ValuesIn(CorrectPluginMutableProperties)),
                          (ov::test::utils::appendPlatformTypeTestName<OVPropertiesTests>));
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_Driver, OVSetPropComplieModleGetPropTests,
+                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                                            ::testing::ValuesIn(driverCorrectPluginMutableProperties),
+                                            ::testing::ValuesIn(CorrectCompiledModelProperties)),
+                         (ov::test::utils::appendPlatformTypeTestName<OVSetPropComplieModleGetPropTests>));
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVPropertiesIncorrectTests,
                          ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
@@ -139,6 +150,12 @@ INSTANTIATE_TEST_SUITE_P(
         smoke_BehaviorTests_OVCheckSetSupportedRWMetricsPropsTests, OVCheckSetSupportedRWMetricsPropsTests,
         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
                            ::testing::ValuesIn(getRWMandatoryPropertiesValues(CorrectPluginMutableProperties))),
+        (ov::test::utils::appendPlatformTypeTestName<OVCheckSetSupportedRWMetricsPropsTests>));
+
+INSTANTIATE_TEST_SUITE_P(
+        smoke_BehaviorTests_OVCheckSetSupportedRWMetricsPropsTests_Driver, OVCheckSetSupportedRWMetricsPropsTests,
+        ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                           ::testing::ValuesIn(getRWMandatoryPropertiesValues(driverCorrectPluginMutableProperties))),
         (ov::test::utils::appendPlatformTypeTestName<OVCheckSetSupportedRWMetricsPropsTests>));
 
 INSTANTIATE_TEST_SUITE_P(

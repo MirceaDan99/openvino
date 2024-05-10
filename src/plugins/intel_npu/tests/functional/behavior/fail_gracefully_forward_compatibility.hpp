@@ -1,11 +1,11 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "base/ov_behavior_test_utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "common_test_utils/node_builders/constant.hpp"
 #include "functional_test_utils/ov_plugin_cache.hpp"
 
@@ -74,7 +74,7 @@ public:
 
         std::ostringstream result;
         result << "targetDevice=" << targetDevice << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {
                 result << "configItem=" << configItem.first << "_";

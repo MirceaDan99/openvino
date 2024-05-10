@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,7 +8,7 @@
 #include "base/ov_behavior_test_utils.hpp"
 #include "behavior/ov_plugin/properties_tests.hpp"
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "common_test_utils/subgraph_builders/concat_with_params.hpp"
 #include "common_test_utils/subgraph_builders/kso_func.hpp"
 #include "common_test_utils/subgraph_builders/single_concat_with_constant.hpp"
@@ -49,7 +49,7 @@ public:
 
         std::ostringstream result;
         result << "OVClassNetworkTestName_" << target_device;
-        result << "_targetDevice=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
+        result << "_targetDevice=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
                << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {
@@ -90,6 +90,8 @@ public:
 };
 
 class OVClassBasicTestPNPU : public OVBasicPropertiesTestsP {
+protected:
+    static bool useMlirCompiler();
 
 public:
     void TearDown() override {
@@ -174,6 +176,7 @@ TEST(OVClassBasicPropsTestNPU, smoke_SetConfigDevicePropertiesThrows) {
 TEST_P(OVClassBasicTestPNPU, smoke_registerPluginsLibrariesUnicodePath) {
     ov::Core core = createCoreWithTemplate();
 
+    const std::vector<std::string> mlirlibs = {pluginName, std::string("npu_mlir_compiler") + OV_BUILD_POSTFIX};
     const std::vector<std::string> libs = {pluginName};
 
     for (std::size_t testIndex = 0; testIndex < ov::test::utils::test_unicode_postfix_vector.size(); testIndex++) {
@@ -191,7 +194,7 @@ TEST_P(OVClassBasicTestPNPU, smoke_registerPluginsLibrariesUnicodePath) {
             std::string pluginNamePath =
                     ov::util::make_plugin_library_name(ov::util::wstring_to_string(unicode_path), pluginName);
 
-            for (auto&& lib : libs) {
+            for (auto&& lib : useMlirCompiler() ? mlirlibs : libs) {
                 auto&& libPath = ov::test::utils::stringToWString(
                         ov::util::make_plugin_library_name(ov::test::utils::getOpenvinoLibDirectory(), lib));
                 auto&& libPathNew = ov::test::utils::stringToWString(

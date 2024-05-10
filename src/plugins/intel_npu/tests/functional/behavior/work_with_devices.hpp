@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 #include "common/functions.h"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "intel_npu/al/config/common.hpp"
 #include "npu_private_properties.hpp"
 
@@ -34,7 +34,7 @@ public:
         std::replace(targetDevice.begin(), targetDevice.end(), ':', '.');
         std::ostringstream result;
         result << "targetDevice=" << targetDevice << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
         if (!configuration.empty()) {
             using namespace ov::test::utils;
             for (auto& configItem : configuration) {
@@ -52,7 +52,7 @@ protected:
 
 TEST_P(TestCompiledModelNPU, samePlatformProduceTheSameBlob) {
     SKIP_IF_CURRENT_TEST_IS_DISABLED() {
-        std::string platform = ov::test::utils::getTestsPlatformFromEnvironmentOr("3700");
+        std::string platform = LayerTestsUtils::getTestsPlatformFromEnvironmentOr("3700");
 
         configuration[ov::intel_npu::create_executor.name()] = "0";
         auto configuration1 = configuration;
@@ -98,7 +98,7 @@ TEST_P(TestCompileModelWithoutDeviceNPU, ThrowIfNoDeviceAndNoPlatform) {
 TEST_P(TestCompileModelWithoutDeviceNPU, NoThrowIfNoDeviceAndButPlatformPassed) {
     SKIP_IF_CURRENT_TEST_IS_DISABLED() {
         auto netConfiguration = configuration;
-        netConfiguration[ov::intel_npu::platform.name()] = ov::test::utils::getTestsPlatformFromEnvironmentOr("3700");
+        netConfiguration[ov::intel_npu::platform.name()] = LayerTestsUtils::getTestsPlatformFromEnvironmentOr("3700");
         const auto& ov_model = buildSingleLayerSoftMaxNetwork();
         OV_ASSERT_NO_THROW(auto compiled_model = core->compile_model(ov_model, target_device, netConfiguration));
     }
@@ -106,7 +106,7 @@ TEST_P(TestCompileModelWithoutDeviceNPU, NoThrowIfNoDeviceAndButPlatformPassed) 
 
 const std::map<std::string_view, std::array<std::string_view, 2>> wrongDevice = {
         // {orig, {wrong for MLIR}}
-        {"VPU3700", {"VPU0000"}}, {"VPU3720", {"VPU0000"}},
+        {"VPU3700", {"VPU0000"}}, {"VPU3720", {"VPU0000"}}
 };
 
 std::string getWrongDevice(const std::string_view platform, const CompilerType&) {

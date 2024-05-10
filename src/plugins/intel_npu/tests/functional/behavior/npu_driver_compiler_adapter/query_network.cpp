@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -6,7 +6,7 @@
 #include <openvino/op/op.hpp>
 #include "base/ov_behavior_test_utils.hpp"
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "common_test_utils/node_builders/constant.hpp"
 #include "common_test_utils/subgraph_builders/conv_pool_relu.hpp"
 #include "common_test_utils/subgraph_builders/conv_pool_relu_non_zero.hpp"
@@ -45,8 +45,6 @@ public:
     }
 };
 
-std::shared_ptr<ov::Model> createModelWithUnknownNode();
-
 std::shared_ptr<ov::Model> createModelWithUnknownNode() {
     const ov::Shape input_shape = {1, 4096};
     const ov::element::Type precision = ov::element::f32;
@@ -65,6 +63,8 @@ public:
     ov::SupportedOpsMap testQueryNetwork(std::shared_ptr<ov::Model> model) {
         std::shared_ptr<ov::Core> core = utils::PluginCache::get().core();
         ov::AnyMap config;
+        config[ov::intel_npu::compiler_type.name()] =
+                configuration[ov::intel_npu::compiler_type.name()].as<std::string>();
         return core->query_model(model, target_device, config);
     }
 
@@ -82,7 +82,7 @@ public:
 
         std::ostringstream result;
         result << "targetDevice=" << targetDevice << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {
                 result << "configItem=" << configItem.first << "_";
@@ -103,28 +103,39 @@ protected:
     ov::AnyMap configuration;
 };
 
-const std::vector<ov::AnyMap> configs = {{}};
+const std::vector<ov::AnyMap> configMLIR = {
+        {{ov::intel_npu::compiler_type(ov::intel_npu::CompilerType::MLIR)}},
+};
 
-using QueryNetworkTestSuite1NPU = QueryNetworkTestNPU;	
+const std::vector<ov::AnyMap> configDriver = {
+        {{ov::intel_npu::compiler_type(ov::intel_npu::CompilerType::DRIVER)}},
+};
 
-// Test query with a supported OpenVINO model	
-TEST_P(QueryNetworkTestSuite1NPU, TestQueryNetworkSupported) {	
-    const auto supportedModel = ov::test::utils::make_conv_pool_relu();	
-    ov::SupportedOpsMap result;	
-    EXPECT_NO_THROW(result = testQueryNetwork(supportedModel));	
-    std::unordered_set<std::string> expected, actual;	
-    for (auto& op : supportedModel->get_ops()) {	
-        expected.insert(op->get_friendly_name());	
-    }	
-    for (auto& name : result) {	
-        actual.insert(name.first);	
-    }	
-    EXPECT_EQ(expected, actual);	
-}	
+using QueryNetworkTestSuite1NPU = QueryNetworkTestNPU;
 
-INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest, QueryNetworkTestSuite1NPU,	
-                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),	
-                                            ::testing::ValuesIn(configs)),	
+// Test query with a supported OpenVINO model
+TEST_P(QueryNetworkTestSuite1NPU, TestQueryNetworkSupported) {
+    const auto supportedModel = ov::test::utils::make_conv_pool_relu();
+    ov::SupportedOpsMap result;
+    EXPECT_NO_THROW(result = testQueryNetwork(supportedModel));
+    std::unordered_set<std::string> expected, actual;
+    for (auto& op : supportedModel->get_ops()) {
+        expected.insert(op->get_friendly_name());
+    }
+    for (auto& name : result) {
+        actual.insert(name.first);
+    }
+    EXPECT_EQ(expected, actual);
+}
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest, QueryNetworkTestSuite1NPU,
+                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                                            ::testing::ValuesIn(configMLIR)),
+                         QueryNetworkTestNPU::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest_Driver, QueryNetworkTestSuite1NPU,
+                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                                            ::testing::ValuesIn(configDriver)),
                          QueryNetworkTestNPU::getTestCaseName);
 
 using QueryNetworkTestSuite2NPU = QueryNetworkTestNPU;
@@ -151,7 +162,12 @@ TEST_P(QueryNetworkTestSuite2NPU, DISABLED_TestQueryNetworkUnsupported) {
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest, QueryNetworkTestSuite2NPU,
                          ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
-                                            ::testing::ValuesIn(configs)),
+                                            ::testing::ValuesIn(configMLIR)),
+                         QueryNetworkTestNPU::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest_Driver, QueryNetworkTestSuite2NPU,
+                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                                            ::testing::ValuesIn(configDriver)),
                          QueryNetworkTestNPU::getTestCaseName);
 
 using QueryNetworkTestSuite3NPU = QueryNetworkTestNPU;
@@ -164,6 +180,11 @@ TEST_P(QueryNetworkTestSuite3NPU, TestQueryNetworkThrow) {
     const auto unsupportedModel = createModelWithUnknownNode();
     EXPECT_ANY_THROW(result = testQueryNetwork(unsupportedModel));
 }
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest, QueryNetworkTestSuite3NPU,
+                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),
+                                            ::testing::ValuesIn(configDriver)),
+                         QueryNetworkTestNPU::getTestCaseName);
 
 }  // namespace behavior
 }  // namespace test

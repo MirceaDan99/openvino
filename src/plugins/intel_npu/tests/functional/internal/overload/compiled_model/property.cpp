@@ -1,10 +1,11 @@
-// Copyright (C) 2018-2024 Intel Corporation
+//
+// Copyright (C) 2022-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "behavior/compiled_model/properties.hpp"
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "common_test_utils/subgraph_builders/conv_pool_relu.hpp"
 #include "intel_npu/al/config/common.hpp"
 
@@ -21,7 +22,7 @@ std::vector<std::pair<std::string, ov::Any>> exe_network_supported_properties = 
         {ov::hint::enable_cpu_pinning.name(), ov::Any(true)},
         {ov::hint::performance_mode.name(), ov::Any(ov::hint::PerformanceMode::THROUGHPUT)},
         {ov::enable_profiling.name(), ov::Any(true)},
-        {ov::device::id.name(), ov::Any(ov::test::utils::getDeviceNameID(ov::test::utils::getDeviceName()))},
+        {ov::device::id.name(), ov::Any(LayerTestsUtils::getDeviceNameID(LayerTestsUtils::getDeviceName()))},
         {ov::optimal_number_of_infer_requests.name(), ov::Any(2)},
 };
 
@@ -31,7 +32,13 @@ std::vector<std::pair<std::string, ov::Any>> exe_network_immutable_properties = 
         {std::make_pair(ov::supported_properties.name(), ov::Any("deadbeef"))},
         {std::make_pair(ov::model_name.name(), ov::Any("deadbeef"))}};
 
-std::vector<std::pair<std::string, ov::Any>> properties = {{}};
+// MLIR compiler type config
+std::vector<std::pair<std::string, ov::Any>> mlir_compiler_type_properties = {
+        {std::make_pair(ov::intel_npu::compiler_type.name(), ov::Any(ov::intel_npu::CompilerType::MLIR))}};
+
+// Driver compiler type config
+std::vector<std::pair<std::string, ov::Any>> driver_compiler_type_properties = {
+        {std::make_pair(ov::intel_npu::compiler_type.name(), ov::Any(ov::intel_npu::CompilerType::DRIVER))}};
 
 // ExecutableNetwork Properties tests
 class ClassExecutableNetworkGetPropertiesTestNPU :
@@ -66,10 +73,10 @@ public:
         std::tie(targetDevice, configuration, compilerType) = obj.param;
         std::replace(targetDevice.begin(), targetDevice.end(), ':', '_');
         std::ostringstream result;
-        result << "targetDevice=" << ov::test::utils::getDeviceNameTestCase(targetDevice) << "_";
+        result << "targetDevice=" << LayerTestsUtils::getDeviceNameTestCase(targetDevice) << "_";
         result << "config=(" << configuration.first << "=" << configuration.second.as<std::string>() << ")";
         result << "_compilerType=(" << compilerType.first << "=" << compilerType.second.as<std::string>() << ")";
-        result << "_targetPlatform=" + ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
+        result << "_targetPlatform=" + LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
 
         return result.str();
     }
@@ -93,9 +100,16 @@ TEST_P(ClassExecutableNetworkTestSuite1NPU, PropertyIsSupportedAndImmutableAndGe
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkGetPropertiesTestNPU,
                          ClassExecutableNetworkTestSuite1NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(exe_network_supported_properties),
-                                            ::testing::ValuesIn(properties)),
+                                            ::testing::ValuesIn(mlir_compiler_type_properties)),
+                         ClassExecutableNetworkTestSuite1NPU::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkGetPropertiesTestNPU_Driver,
+                         ClassExecutableNetworkTestSuite1NPU,
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
+                                            ::testing::ValuesIn(exe_network_supported_properties),
+                                            ::testing::ValuesIn(driver_compiler_type_properties)),
                          ClassExecutableNetworkTestSuite1NPU::getTestCaseName);
 
 using ClassExecutableNetworkTestSuite2NPU = ClassExecutableNetworkGetPropertiesTestNPU;
@@ -115,9 +129,16 @@ TEST_P(ClassExecutableNetworkTestSuite2NPU, PropertyIsSupportedAndImmutableAndCa
 }
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkTestSuite2NPU, ClassExecutableNetworkTestSuite2NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(exe_network_immutable_properties),
-                                            ::testing::ValuesIn(properties)),
+                                            ::testing::ValuesIn(mlir_compiler_type_properties)),
+                         ClassExecutableNetworkTestSuite2NPU::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkTestSuite2NPU_Driver,
+                         ClassExecutableNetworkTestSuite2NPU,
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
+                                            ::testing::ValuesIn(exe_network_immutable_properties),
+                                            ::testing::ValuesIn(driver_compiler_type_properties)),
                          ClassExecutableNetworkTestSuite2NPU::getTestCaseName);
 
 }  // namespace
@@ -131,7 +152,7 @@ std::vector<std::pair<std::string, ov::Any>> plugin_public_mutable_properties = 
         {ov::hint::performance_mode.name(), ov::Any(ov::hint::PerformanceMode::THROUGHPUT)},
         {ov::hint::enable_cpu_pinning.name(), ov::Any(true)},
         {ov::log::level.name(), ov::Any(ov::log::Level::DEBUG)},
-        {ov::device::id.name(), ov::Any(ov::test::utils::getDeviceNameID(ov::test::utils::getDeviceName()))},
+        {ov::device::id.name(), ov::Any(LayerTestsUtils::getDeviceNameID(LayerTestsUtils::getDeviceName()))},
 };
 
 std::vector<std::pair<std::string, ov::Any>> plugin_internal_mutable_properties = {
@@ -184,9 +205,9 @@ public:
         std::tie(targetDevice, configuration) = obj.param;
         std::replace(targetDevice.begin(), targetDevice.end(), ':', '_');
         std::ostringstream result;
-        result << "targetDevice=" << ov::test::utils::getDeviceNameTestCase(targetDevice) << "_";
+        result << "targetDevice=" << LayerTestsUtils::getDeviceNameTestCase(targetDevice) << "_";
         result << "config=(" << configuration.first << "=" << configuration.second.as<std::string>() << ")";
-        result << "_targetPlatform=" + ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
+        result << "_targetPlatform=" + LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
         return result.str();
     }
 };
@@ -211,7 +232,7 @@ TEST_P(ClassPluginPropertiesTestSuite0NPU, CanSetGetPublicMutableProperty) {
 }
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassPluginPropertiesTestNPU, ClassPluginPropertiesTestSuite0NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(plugin_public_mutable_properties)),
                          ClassPluginPropertiesTestNPU::getTestCaseName);
 
@@ -227,7 +248,7 @@ TEST_P(ClassPluginPropertiesTestSuite1NPU, CanSetGetInternalMutableProperty) {
 }
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassPluginPropertiesTestNPU, ClassPluginPropertiesTestSuite1NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(plugin_internal_mutable_properties)),
                          ClassPluginPropertiesTestNPU::getTestCaseName);
 
@@ -254,7 +275,7 @@ TEST_P(ClassPluginPropertiesTestSuite2NPU, CanNotSetImmutableProperty) {
 }
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassPluginPropertiesTest, ClassPluginPropertiesTestSuite2NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(plugin_public_immutable_properties)),
                          ClassPluginPropertiesTestNPU::getTestCaseName);
 
@@ -283,12 +304,12 @@ TEST_P(ClassPluginPropertiesTestSuite3NPU, CanGetPropertyWithOptionsNotAffecting
 }
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassPluginPropertiesOptsTest1NPU, ClassPluginPropertiesTestSuite3NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(plugin_public_immutable_properties)),
                          ClassPluginPropertiesTestNPU::getTestCaseName);
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassPluginPropertiesOptsTest2NPU, ClassPluginPropertiesTestSuite3NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn(plugin_public_mutable_properties)),
                          ClassPluginPropertiesTestNPU::getTestCaseName);
 
@@ -324,10 +345,18 @@ TEST_P(ClassPluginPropertiesTestSuite4NPU, CanNotSetGetInexistentProperty) {
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkGetPropertiesTestNPU,
                          ClassPluginPropertiesTestSuite4NPU,
-                         ::testing::Combine(::testing::Values(ov::test::utils::getDeviceName()),
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
                                             ::testing::ValuesIn({std::make_pair<std::string, ov::Any>(
                                                     "THISCONFIGKEYNOTEXIST", ov::Any("THISCONFIGVALUENOTEXIST"))}),
-                                            ::testing::ValuesIn(properties)),
+                                            ::testing::ValuesIn(mlir_compiler_type_properties)),
+                         ClassPluginPropertiesTestSuite4NPU::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests_ClassExecutableNetworkGetPropertiesTestNPU_Driver,
+                         ClassPluginPropertiesTestSuite4NPU,
+                         ::testing::Combine(::testing::Values(LayerTestsUtils::getDeviceName()),
+                                            ::testing::ValuesIn({std::make_pair<std::string, ov::Any>(
+                                                    "THISCONFIGKEYNOTEXIST", ov::Any("THISCONFIGVALUENOTEXIST"))}),
+                                            ::testing::ValuesIn(driver_compiler_type_properties)),
                          ClassPluginPropertiesTestSuite4NPU::getTestCaseName);
 
 }  // namespace

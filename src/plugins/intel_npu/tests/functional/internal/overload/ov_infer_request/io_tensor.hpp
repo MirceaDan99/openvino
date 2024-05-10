@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -220,7 +220,7 @@ TEST_P(OVInferRequestIOTensorTestNPU, InferStaticNetworkSetChangedOutputTensorTh
 }
 
 struct OVInferRequestIOTensorSetPrecisionTestNPU : OVInferRequestIOTensorSetPrecisionTest {
-    void SetUp() override {
+    void SetUp() {
         std::tie(element_type, target_device, config) = this->GetParam();
         SKIP_IF_CURRENT_TEST_IS_DISABLED()
         APIBaseTest::SetUp();

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,7 +11,7 @@
 
 #include "base/ov_behavior_test_utils.hpp"
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "functional_test_utils/ov_plugin_cache.hpp"
 #include "overload/overload_test_utils_npu.hpp"
 
@@ -55,11 +55,11 @@ public:
         ov::AnyMap configuration;
         std::tie(targetDevice, configuration) = obj.param;
         std::replace(targetDevice.begin(), targetDevice.end(), ':', '_');
-        targetDevice = ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
+        targetDevice = LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU);
 
         std::ostringstream result;
         result << "targetDevice=" << targetDevice << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(targetDevice) << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {
                 result << "configItem=" << configItem.first << "_";
@@ -328,12 +328,12 @@ TEST_P(BatchingRunTests, SetInputTensorInfer) {
     auto actual_tensor = inference_request.get_output_tensor(0);
     auto* actual = actual_tensor.data<float>();
     auto* input_data = tensor.data<float>();
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         input_data[i] = 5.f;
     }
 
     inference_request.infer();  // Adds '1' to each element
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         EXPECT_NEAR(actual[i], 6.f, 1e-5) << "Expected=6, actual=" << actual[i] << " for index " << i;
     }
 }
@@ -354,13 +354,13 @@ TEST_P(BatchingRunTests, SetInputTensorAsync) {
     auto actual_tensor = inference_request.get_output_tensor(0);
     auto* actual = actual_tensor.data<float>();
     auto* input_data = tensor.data<float>();
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         input_data[i] = 5.f;
     }
 
     inference_request.start_async();  // Adds '1' to each element
     inference_request.wait_for(std::chrono::milliseconds(1000));
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         EXPECT_NEAR(actual[i], 6.f, 1e-5) << "Expected=6, actual=" << actual[i] << " for index " << i;
     }
 }
@@ -384,12 +384,12 @@ TEST_P(BatchingRunTests, SetInputTensorInfer_Caching) {
     auto actual_tensor = inference_request.get_output_tensor(0);
     auto* actual = actual_tensor.data<float>();
     auto* input_data = tensor.data<float>();
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         input_data[i] = 5.f;
     }
 
     inference_request.infer();  // Adds '1' to each element
-    for (size_t i = 0; i < shape_size; ++i) {
+    for (auto i = 0; i < shape_size; ++i) {
         EXPECT_NEAR(actual[i], 6.f, 1e-5) << "Expected=6, actual=" << actual[i] << " for index " << i;
     }
 }

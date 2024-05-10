@@ -1,11 +1,12 @@
-// Copyright (C) 2018-2024 Intel Corporation
+//
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "behavior/compiled_model/properties.hpp"
 #include "common/functions.h"
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 #include "npu_private_properties.hpp"
 
 using namespace ov::test::behavior;
@@ -46,6 +47,7 @@ const std::vector<std::pair<std::string, ov::Any>> compiledModelProperties = {
         {ov::hint::model_priority.name(), ov::Any(ov::hint::Priority::HIGH)},
         {ov::intel_npu::tiles.name(), ov::Any(2)},
         {ov::intel_npu::profiling_type.name(), ov::Any(ov::intel_npu::ProfilingType::INFER)},
+        {ov::intel_npu::dynamic_shape_to_static.name(), ov::Any(true)},
         {ov::intel_npu::use_elf_compiler_backend.name(), ov::Any(ov::intel_npu::ElfCompilerBackend::NO)},
         {ov::intel_npu::create_executor.name(), ov::Any(2)}};
 
@@ -54,7 +56,6 @@ const std::vector<ov::AnyMap> publicCompiledModelConfigs = {
         {{ov::hint::enable_cpu_pinning.name(), ov::Any(false)}},
         {{ov::hint::model_priority.name(), ov::Any(ov::hint::Priority::MEDIUM)}},
         {{ov::execution_devices.name(), ov::Any(ov::test::utils::DEVICE_NPU)}},
-        {{ov::hint::execution_mode.name(), ov::Any(ov::hint::ExecutionMode::PERFORMANCE)}},
         {{ov::hint::inference_precision.name(), ov::Any(ov::element::f16)}},
         {{ov::loaded_from_cache.name(), ov::Any(false)}},
         {{ov::model_name.name(), ov::Any("")}},
@@ -65,7 +66,7 @@ const std::vector<ov::AnyMap> publicCompiledModelConfigs = {
         {{ov::supported_properties.name(),  // needed for HETERO
           ov::Any(std::vector<ov::PropertyName>{
                   ov::PropertyName(ov::device::id.name()), ov::PropertyName(ov::hint::enable_cpu_pinning.name()),
-                  ov::PropertyName(ov::execution_devices.name()), ov::PropertyName(ov::hint::execution_mode.name()),
+                  ov::PropertyName(ov::execution_devices.name()),
                   ov::PropertyName(ov::hint::inference_precision.name()),
                   ov::PropertyName(ov::loaded_from_cache.name()), ov::PropertyName(ov::hint::model_priority.name()),
                   ov::PropertyName(ov::model_name.name()),
@@ -195,8 +196,8 @@ INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVCompiledModelIncorrectDevice,
                          ::testing::Values(ov::test::utils::DEVICE_NPU),
                          ov::test::utils::appendPlatformTypeTestName<OVCompiledModelIncorrectDevice>);
 
-INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVCompiledModelPropertiesDefaultSupportedTests,	
-                         ::testing::Values(ov::test::utils::DEVICE_NPU),	
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVCompiledModelPropertiesDefaultSupportedTests,
+                         ::testing::Values(ov::test::utils::DEVICE_NPU),
                          ov::test::utils::appendPlatformTypeTestName<OVCompiledModelPropertiesDefaultSupportedTests>);
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVClassCompiledModelPropertiesDefaultTests,

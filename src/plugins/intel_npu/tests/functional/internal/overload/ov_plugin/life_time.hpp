@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -30,7 +30,7 @@ public:
 
         std::ostringstream result;
         result << "target_device=" << target_device << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
                << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {
@@ -168,7 +168,7 @@ public:
 
         std::ostringstream result;
         result << "target_device=" << target_device << "_";
-        result << "targetPlatform=" << ov::test::utils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
+        result << "targetPlatform=" << LayerTestsUtils::getTestsPlatformFromEnvironmentOr(ov::test::utils::DEVICE_NPU)
                << "_";
         if (!configuration.empty()) {
             for (auto& configItem : configuration) {

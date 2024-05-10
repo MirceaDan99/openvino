@@ -1,11 +1,12 @@
-// Copyright (C) 2018-2024 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024 Intel Corporation.
+// SPDX-License-Identifier: Apache 2.0
 //
 
 #include "behavior/ov_infer_request/batched_tensors.hpp"
 #include <cctype>
 #include "common/utils.hpp"
-#include "common/npu_test_env_cfg.hpp"
+#include "common/vpu_test_env_cfg.hpp"
 
 using namespace ov::test::behavior;
 

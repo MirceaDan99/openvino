@@ -1,4 +1,5 @@
-// Copyright (C) 2018-2024 Intel Corporation
+//
+// Copyright (C) 2022 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -6,19 +7,18 @@
 #include <functional_test_utils/summary/op_summary.hpp>
 #include <iostream>
 #include <sstream>
+#include <vpux/utils/core/logger.hpp>
 #include "gtest/gtest.h"
-#include "intel_npu/al/config/config.hpp"
 #include "npu_private_properties.hpp"
-#include "npu_test_report.hpp"
-#include "npu_test_tool.hpp"
+#include "vpu_test_report.hpp"
+#include "vpu_test_tool.hpp"
+#include "vpux/utils/IE/config.hpp"
 
 namespace testing {
 namespace internal {
 extern bool g_help_flag;
 }  // namespace internal
 }  // namespace testing
-
-void sigsegv_handler(int errCode);
 
 void sigsegv_handler(int errCode) {
     auto& s = ov::test::utils::OpSummary::getInstance();
@@ -48,7 +48,7 @@ int main(int argc, char** argv, char** envp) {
     }
 
     ::testing::InitGoogleTest(&argc, argv);
-    ::testing::AddGlobalTestEnvironment(new ov::test::utils::NpuTestReportEnvironment());
+    ::testing::AddGlobalTestEnvironment(new LayerTestsUtils::VpuTestReportEnvironment());
 
     const bool dryRun = ::testing::GTEST_FLAG(list_tests) || ::testing::internal::g_help_flag;
 
@@ -56,10 +56,10 @@ int main(int argc, char** argv, char** envp) {
         const std::string noFetch{"<not fetched>"};
         std::string backend{noFetch}, arch{noFetch}, full{noFetch};
         try {
-            ov::test::utils::NpuTestTool npuTestTool(ov::test::utils::NpuTestEnvConfig::getInstance());
-            backend = npuTestTool.getDeviceMetric(ov::intel_npu::backend_name.name());
-            arch = npuTestTool.getDeviceMetric(ov::device::architecture.name());
-            full = npuTestTool.getDeviceMetric(ov::device::full_name.name());
+            LayerTestsUtils::VpuTestTool kmbTestTool(LayerTestsUtils::VpuTestEnvConfig::getInstance());
+            backend = kmbTestTool.getDeviceMetric(ov::intel_npu::backend_name.name());
+            arch = kmbTestTool.getDeviceMetric(ov::device::architecture.name());
+            full = kmbTestTool.getDeviceMetric(ov::device::full_name.name());
         } catch (const std::exception& e) {
             std::cerr << "Exception while trying to determine device characteristics: " << e.what() << std::endl;
         }
@@ -74,11 +74,11 @@ int main(int argc, char** argv, char** envp) {
         std::cout << "gtest death test process is running" << std::endl;
     }
 
-    auto& log = intel_npu::Logger::global();
-    auto level = ov::test::utils::NpuTestEnvConfig::getInstance().IE_NPU_TESTS_LOG_LEVEL;
-    ov::log::Level logLevel = level.empty()
-                                      ? ov::log::Level::ERR
-                                      : intel_npu::OptionParser<ov::log::Level>::parse(level.c_str());
+    auto& log = vpux::Logger::global();
+    auto level = LayerTestsUtils::VpuTestEnvConfig::getInstance().IE_NPU_TESTS_LOG_LEVEL;
+    vpux::LogLevel logLevel = level.empty()
+                                      ? vpux::LogLevel::Info
+                                      : vpux::getLogLevel(vpux::OptionParser<ov::log::Level>::parse(level.c_str()));
     log.setLevel(logLevel);
 
     return RUN_ALL_TESTS();

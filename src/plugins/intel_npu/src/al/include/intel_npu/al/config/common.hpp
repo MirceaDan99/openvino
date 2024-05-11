@@ -216,7 +216,6 @@ struct LOADED_FROM_CACHE final : OptionBase<LOADED_FROM_CACHE, bool> {
     }
 };
 
-
 //
 // SAVE_TO_CACHE
 //

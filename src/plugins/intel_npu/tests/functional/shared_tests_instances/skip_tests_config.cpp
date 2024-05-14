@@ -528,10 +528,15 @@ std::vector<std::string> disabledTestPatterns() {
                                    ".*DriverCompilerAdapterInputsOutputsTestNPU.CheckInOutputs.*",
                                    ".*DriverCompilerAdapterExpectedThrowNPU.CheckWrongGraphExtAndThrow.*"});
 
+        _skipRegistry.addPatterns(devices.has3700() || !backendName.isZero(),
+                "Batching on plugin is not supported on 3700 platform or other backends besides Level Zero backend", {
+                ".*BatchingRunTests.*"
+        });
+
 #ifdef WIN32
 #elif defined(__linux__)
         // [Tracking number: E#103391]
-        _skipRegistry.addPatterns(backendName.isZero() && devices.has3720()),
+        _skipRegistry.addPatterns(backendName.isZero() && devices.has3720(),
                 "IfTest segfaults npuFuncTest on Ubuntu", {
                 ".*smoke_IfTest.*"
         });
@@ -606,7 +611,7 @@ std::vector<std::string> disabledTestPatterns() {
         });
 
         // [Tracking number: E#99817]
-        _skipRegistry.addPatterns(backendName.isZero() && devices.has3720()),
+        _skipRegistry.addPatterns(backendName.isZero() && devices.has3720(),
                 "Disabled tests for NPU3720", {
                 ".*InferRequestVariableStateTest.inferreq_smoke_VariableState_2infers.*",
                 ".*OVInferRequestIOTensorTest.*InferStaticNetworkSetChangedInputTensorThrow.*"

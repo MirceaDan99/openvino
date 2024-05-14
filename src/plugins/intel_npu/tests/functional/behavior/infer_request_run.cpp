@@ -32,7 +32,8 @@ INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest_Driver, InferRequestRunTests,
 
 const std::vector<ov::AnyMap> batchingConfigs = {
         {ov::log::level(ov::log::Level::WARNING), ov::intel_npu::batch_mode(ov::intel_npu::BatchMode::COMPILER)},
-        {ov::log::level(ov::log::Level::WARNING), ov::intel_npu::batch_mode(ov::intel_npu::BatchMode::AUTO)}};
+        {ov::log::level(ov::log::Level::WARNING), ov::intel_npu::batch_mode(ov::intel_npu::BatchMode::AUTO)},
+        {ov::log::level(ov::log::Level::WARNING), ov::intel_npu::batch_mode(ov::intel_npu::BatchMode::PLUGIN)}};
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTest_Driver, BatchingRunTests,
                          ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_NPU),

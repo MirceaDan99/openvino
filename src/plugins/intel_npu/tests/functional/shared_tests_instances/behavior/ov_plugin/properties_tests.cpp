@@ -70,9 +70,9 @@ const std::vector<std::string> ImmutableProperties{ov::supported_properties.name
                                                    ov::range_for_streams.name(),
                                                    ov::device::uuid.name(),
                                                    ov::device::architecture.name(),
-                                                   ov::device::full_name.name()
-
-};
+                                                   ov::device::full_name.name(),
+                                                   ov::device::pci_info.name(),
+                                                   ov::device::gops.name()};
 
 const std::vector<ov::AnyMap> CorrectCompiledModelProperties = {
         {{ov::device::id.name(), removeDeviceNameOnlyID(ov::test::utils::getTestsPlatformFromEnvironmentOr("3700"))}},
@@ -97,7 +97,13 @@ const std::vector<ov::AnyMap> IncorrectImmutableProperties = {
           ov::device::UUID{std::array<uint8_t, ov::device::UUID::MAX_UUID_SIZE>{
                   0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x09, 0x87, 0x65, 0x43, 0x21, 0xFE, 0xDC, 0xBA}}}},
         {{ov::device::architecture.name(), "3720"}},
-        {{ov::device::full_name.name(), "NPU.3700"}}};  // namespace
+        {{ov::device::full_name.name(), "NPU.3700"}},
+        {{ov::device::pci_info.name(),
+          ov::device::PCIInfo{0xFFFF, 0xFFFF, 0, 0xFFFF}}},  // setting invalid domain, bus,device and function ids
+        {{ov::device::gops.name(), std::map<ov::element::Type, float>{{ov::element::f32, 1},
+                                                                      {ov::element::f16, 0},
+                                                                      {ov::element::u8, 0},
+                                                                      {ov::element::i8, 0}}}}};  // namespace
 
 const std::vector<ov::AnyMap> IncorrectMutablePropertiesWrongValueTypes = {
         // OV

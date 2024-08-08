@@ -19,6 +19,7 @@
 #include "openvino/op/parameter.hpp"
 #include "openvino/runtime/intel_npu/properties.hpp"
 #include "openvino/runtime/properties.hpp"
+#include "openvino/util/mmap_object.hpp"
 #include "remote_context.hpp"
 
 using namespace intel_npu;
@@ -741,22 +742,24 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
         auto compiler = getCompiler(localConfig);
 
         auto graphSize = getFileSize(stream);
-
-        std::vector<uint8_t> blob(graphSize);
-        stream.read(reinterpret_cast<char*>(blob.data()), graphSize);
-        if (!stream) {
-            OPENVINO_THROW("Failed to read data from stream!");
+        if (graphSize == 0) {
+            OPENVINO_THROW("Blob is empty");
         }
-        _logger.debug("Successfully read %zu bytes into blob.", graphSize);
 
-        auto meta = compiler->parse(blob, localConfig);
+        std::ofstream tmpBlob("tmpBlob.blob");
+        tmpBlob << stream.rdbuf();
+        tmpBlob.close();
+
+        auto mMapBlob = ov::load_mmap_object("tmpBlob.blob");
+
+        auto meta = compiler->parse(mMapBlob, localConfig);
         meta.name = "net" + std::to_string(_compiledModelLoadCounter++);
 
         const std::shared_ptr<ov::Model> modelDummy = create_dummy_model(meta.inputs, meta.outputs);
 
         bool profiling = localConfig.get<PERF_COUNT>();
 
-        auto networkDescription = std::make_shared<const NetworkDescription>(std::move(blob), std::move(meta));
+        auto networkDescription = std::make_shared<const NetworkDescriptionT<std::shared_ptr<ov::MappedMemory>>>(std::move(mMapBlob), std::move(meta));
 
         compiledModel = std::make_shared<CompiledModel>(modelDummy,
                                                         shared_from_this(),

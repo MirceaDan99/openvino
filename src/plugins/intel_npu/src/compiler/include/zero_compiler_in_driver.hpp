@@ -65,10 +65,16 @@ public:
                                                 ze_device_graph_properties_t deviceGraphProperties,
                                                 ze_graph_handle_t& graphHandle) const;
 
-    NetworkMetadata parse(const std::vector<uint8_t>& network, const Config& config) const override final;
+    NetworkMetadata parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork, const Config& config) const override final;
 
     std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
                                                             const std::vector<uint8_t>& network,
+                                                            const Config& config) const override final {
+        OPENVINO_THROW("Profiling post-processing is not implemented.");
+    }
+
+    std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
+                                                            const std::shared_ptr<ov::MappedMemory>& mmapNetwork,
                                                             const Config& config) const override final {
         OPENVINO_THROW("Profiling post-processing is not implemented.");
     }

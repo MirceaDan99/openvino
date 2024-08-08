@@ -870,23 +870,23 @@ NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compile(const std:
     }
 
     _logger.debug("compile end");
-    return NetworkDescription(std::move(blob), std::move(networkMeta));
+    return NetworkDescriptionT<std::vector<uint8_t>>(std::move(blob), std::move(networkMeta));
 }
 
 template <typename TableExtension>
-NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::vector<uint8_t>& network,
+NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork,
                                                                  const Config& config) const {
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "LevelZeroCompilerInDriver::parse", "desc");
     ze_graph_handle_t graphHandle;
 
-    if (!network.empty()) {
+    if (mmapNetwork->size() > 0) {
         _logger.debug("Import network case");
         ze_graph_format_t format = ZE_GRAPH_FORMAT_NATIVE;
         ze_graph_desc_t desc{ZE_STRUCTURE_TYPE_GRAPH_DESC_PROPERTIES,
                              nullptr,
                              format,
-                             network.size(),
-                             network.data(),
+                             mmapNetwork->size(),
+                             reinterpret_cast<uint8_t*>(mmapNetwork->data()),
                              nullptr};
 
         auto result = _graphDdiTableExt->pfnCreate(_context, _deviceHandle, &desc, &graphHandle);

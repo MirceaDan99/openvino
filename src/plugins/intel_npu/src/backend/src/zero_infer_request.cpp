@@ -595,10 +595,13 @@ std::vector<ov::ProfilingInfo> ZeroInferRequest::get_profiling_info() const {
         // processing to the compiler
         const auto& networkDesc = compiledModel.get_network_description();
         const auto& compiler = compiledModel.get_compiler();
-        const auto& blob = networkDesc->compiledNetwork;
         auto profData = get_raw_profiling_data();
         _logger.debug("InferRequest::get_profiling_info complete with compiler->process_profiling_output().");
-        return compiler->process_profiling_output(profData, blob, compilerConfig);
+        if (NetworkDescriptionCastCheck(networkDesc) == false) {
+            auto networkDescCast = NetworkDescriptionPtrCast2(networkDesc);
+            return compiler->process_profiling_output(profData, networkDescCast->compiledNetwork, compilerConfig);
+        } 
+        return compiler->process_profiling_output(profData, NetworkDescriptionPtrCast1(networkDesc)->compiledNetwork, compilerConfig);
     } else {
         auto proftype = _config.get<PROFILING_TYPE>();
         if (proftype == ov::intel_npu::ProfilingType::INFER) {

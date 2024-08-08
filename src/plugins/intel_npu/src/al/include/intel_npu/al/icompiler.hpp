@@ -19,6 +19,9 @@
 #include "openvino/core/type/element_type.hpp"
 #include "openvino/runtime/common.hpp"
 #include "openvino/runtime/profiling_info.hpp"
+#include "openvino/util/mmap_object.hpp"
+
+#include <optional>
 
 namespace intel_npu {
 
@@ -131,20 +134,39 @@ struct NetworkMetadata final {
  * to provide such information about a network as description of inputs and outputs,
  * name and compiled network in a format executable by device
  */
-struct NetworkDescription final {
-    NetworkDescription(std::vector<uint8_t>&& compiledNetwork, NetworkMetadata&& metadata)
-        : compiledNetwork(std::move(compiledNetwork)),
-          metadata(std::move(metadata)) {}
+
+#define NetworkDescriptionCastCheck(network) dynamic_cast<const NetworkDescriptionT<std::vector<uint8_t>>*>(network.get()) != nullptr ? true : false
+#define NetworkDescriptionPtrCast1(network) std::dynamic_pointer_cast<const NetworkDescriptionT<std::vector<uint8_t>>>(network)
+#define NetworkDescriptionPtrCast2(network) std::dynamic_pointer_cast<const NetworkDescriptionT<std::shared_ptr<ov::MappedMemory>>>(network)
+
+struct NetworkDescription {
+
     // Force move semantics to prevent blob copies
+    NetworkDescription(NetworkMetadata&& metadata) : metadata(std::move(metadata)) {}
     NetworkDescription(const NetworkDescription&) = delete;
     NetworkDescription(NetworkDescription&&) = default;
     NetworkDescription& operator=(const NetworkDescription&) = delete;
     NetworkDescription& operator=(NetworkDescription&&) = default;
-    ~NetworkDescription() = default;
-
-    std::vector<uint8_t> compiledNetwork;
+    virtual ~NetworkDescription() = default;
 
     NetworkMetadata metadata;
+};
+
+template<typename T>
+struct NetworkDescriptionT : public NetworkDescription {
+
+    NetworkDescriptionT(T&& compiledNetwork, NetworkMetadata&& metadata)
+        : NetworkDescription(std::move(metadata)) {
+            this->compiledNetwork = compiledNetwork;
+        }
+
+    NetworkDescriptionT(const NetworkDescriptionT<T>&) = delete;
+    NetworkDescriptionT(NetworkDescriptionT<T>&&) = default;
+    NetworkDescriptionT& operator=(const NetworkDescriptionT<T>&) = delete;
+    NetworkDescriptionT& operator=(NetworkDescriptionT<T>&&) = default;
+    ~NetworkDescriptionT() = default;
+
+    T compiledNetwork;
 };
 
 /**
@@ -190,10 +212,14 @@ public:
      *        to be used for creating network description
      * @return a shared pointer on an object implementing NetworkDescription interface
      */
-    virtual NetworkMetadata parse(const std::vector<uint8_t>& network, const Config& config) const = 0;
+    virtual NetworkMetadata parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork, const Config& config) const = 0;
 
     virtual std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
                                                                     const std::vector<uint8_t>& network,
+                                                                    const Config& config) const = 0;
+
+    virtual std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
+                                                                    const std::shared_ptr<ov::MappedMemory>& network,
                                                                     const Config& config) const = 0;
 
 protected:

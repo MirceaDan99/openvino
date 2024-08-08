@@ -195,13 +195,19 @@ ov::SupportedOpsMap LevelZeroCompilerAdapter::query(const std::shared_ptr<const 
     return apiAdapter->query(model, config);
 }
 
-NetworkMetadata LevelZeroCompilerAdapter::parse(const std::vector<uint8_t>& network, const Config& config) const {
+NetworkMetadata LevelZeroCompilerAdapter::parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork, const Config& config) const {
     _logger.debug("parse start");
-    return apiAdapter->parse(network, config);
+    return apiAdapter->parse(mmapNetwork, config);
 }
 
 std::vector<ov::ProfilingInfo> LevelZeroCompilerAdapter::process_profiling_output(const std::vector<uint8_t>&,
                                                                                   const std::vector<uint8_t>&,
+                                                                                  const Config&) const {
+    OPENVINO_THROW("Profiling post-processing is not implemented.");
+}
+
+std::vector<ov::ProfilingInfo> LevelZeroCompilerAdapter::process_profiling_output(const std::vector<uint8_t>&,
+                                                                                  const std::shared_ptr<ov::MappedMemory>&,
                                                                                   const Config&) const {
     OPENVINO_THROW("Profiling post-processing is not implemented.");
 }

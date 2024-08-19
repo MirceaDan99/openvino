@@ -796,7 +796,7 @@ ze_result_t LevelZeroCompilerInDriver<TableExtension>::seriazlideIRModelAndCreat
 }
 
 template <typename TableExtension>
-NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compile(const std::shared_ptr<const ov::Model>& model,
+std::shared_ptr<NetworkDescription> LevelZeroCompilerInDriver<TableExtension>::compile(const std::shared_ptr<const ov::Model>& model,
                                                                       const Config& config) const {
     _logger.debug("compile start");
 
@@ -870,23 +870,24 @@ NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compile(const std:
     }
 
     _logger.debug("compile end");
-    return NetworkDescriptionT<std::vector<uint8_t>>(std::move(blob), std::move(networkMeta));
+    auto* networkDescriptionPtr = new NetworkDescriptionT(std::move(blob), std::move(networkMeta), blob.data(), blob.size());
+    return std::shared_ptr<typename std::remove_pointer<decltype(networkDescriptionPtr)>::type>(networkDescriptionPtr);
 }
 
 template <typename TableExtension>
-NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork,
+NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::shared_ptr<ov::MappedMemory>& mmapBlob,
                                                                  const Config& config) const {
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "LevelZeroCompilerInDriver::parse", "desc");
     ze_graph_handle_t graphHandle;
 
-    if (mmapNetwork->size() > 0) {
+    if (mmapBlob->data() != nullptr && mmapBlob->size() > 0) {
         _logger.debug("Import network case");
         ze_graph_format_t format = ZE_GRAPH_FORMAT_NATIVE;
         ze_graph_desc_t desc{ZE_STRUCTURE_TYPE_GRAPH_DESC_PROPERTIES,
                              nullptr,
                              format,
-                             mmapNetwork->size(),
-                             reinterpret_cast<uint8_t*>(mmapNetwork->data()),
+                             mmapBlob->size(),
+                             reinterpret_cast<uint8_t*>(mmapBlob->data()),
                              nullptr};
 
         auto result = _graphDdiTableExt->pfnCreate(_context, _deviceHandle, &desc, &graphHandle);

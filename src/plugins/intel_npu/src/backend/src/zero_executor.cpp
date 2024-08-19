@@ -72,20 +72,9 @@ ZeroExecutor::ZeroExecutor(const std::shared_ptr<const ZeroInitStructsHolder>& i
     ze_graph_desc_t desc{ZE_STRUCTURE_TYPE_GRAPH_DESC_PROPERTIES,
                          nullptr,
                          ZE_GRAPH_FORMAT_NATIVE,
-                         0,
-                         nullptr,
+                         _networkDesc->compiledNetworkSize(),
+                         _networkDesc->compiledNetworkData(),
                          nullptr};
-
-    if (NetworkDescriptionCastCheck(_networkDesc)) {
-        auto _networkDescCast = NetworkDescriptionPtrCast1(_networkDesc);
-        desc.inputSize = _networkDescCast->compiledNetwork.size();
-        desc.pInput = _networkDescCast->compiledNetwork.data();
-    } else {
-        auto _networkDescCast = NetworkDescriptionPtrCast2(_networkDesc);
-        desc.inputSize = _networkDescCast->compiledNetwork->size();
-        desc.pInput = reinterpret_cast<uint8_t*>(_networkDescCast->compiledNetwork->data());
-    }
-
     zeroUtils::throwOnFail(
         "pfnCreate",
         _graph_ddi_table_ext->pfnCreate(_initStructs->getContext(), _initStructs->getDevice(), &desc, &_graph));

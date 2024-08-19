@@ -27,10 +27,12 @@ constexpr std::string_view NO_EXECUTOR_FOR_INFERENCE =
     "Can't create infer request!\n"
     "Please make sure that the device is available. Only exports can be made.";
 
-std::uint32_t hash(const std::vector<uint8_t>& data) {
+std::uint32_t hash(const uint8_t* blobData, const size_t blobSize) {
     std::uint32_t result = 1171117u;
-    for (const auto& c : data)
-        result = ((result << 7) + result) + static_cast<uint32_t>(c);
+    const uint8_t* item;
+    for (item = blobData; item < blobData + blobSize; ++item) {
+        result = ((result << 7) + result) + static_cast<uint32_t>(*item);
+    }
     return result;
 }
 
@@ -56,7 +58,7 @@ CompiledModel::CompiledModel(const std::shared_ptr<const ov::Model>& model,
     OPENVINO_ASSERT(compiler != nullptr, "NPU CompiledModel: the pointer towards the compiler object is null");
 
     try {
-        _networkPtr = std::make_shared<const NetworkDescription>(compiler->compile(model, config));
+        _networkPtr = std::const_pointer_cast<const NetworkDescription>(compiler->compile(model, config));
     } catch (const std::exception& ex) {
         OPENVINO_THROW(ex.what());
     } catch (...) {
@@ -128,8 +130,9 @@ std::shared_ptr<ov::ISyncInferRequest> CompiledModel::create_sync_infer_request(
 }
 
 void CompiledModel::export_model(std::ostream& stream) const {
-    const auto& blob = _networkPtr->compiledNetwork;
-    stream.write(reinterpret_cast<const char*>(blob.data()), blob.size());
+    const auto* blobData = _networkPtr->compiledNetworkData();
+    const auto blobSize = _networkPtr->compiledNetworkSize();
+    stream.write(reinterpret_cast<const char*>(blobData), blobSize);
     if (!stream) {
         _logger.error("Write blob to stream failed. Blob is broken!");
     } else {
@@ -137,7 +140,7 @@ void CompiledModel::export_model(std::ostream& stream) const {
     }
 
     std::stringstream str;
-    str << "Blob size: " << blob.size() << ", hash: " << std::hex << hash(blob);
+    str << "Blob size: " << blobSize << ", hash: " << std::hex << hash(blobData, blobSize);
     _logger.info(str.str().c_str());
 }
 

@@ -19,8 +19,9 @@
 #include "openvino/op/parameter.hpp"
 #include "openvino/runtime/intel_npu/properties.hpp"
 #include "openvino/runtime/properties.hpp"
-#include "openvino/util/mmap_object.hpp"
 #include "remote_context.hpp"
+
+#include "openvino/util/mmap_object.hpp"
 
 using namespace intel_npu;
 
@@ -746,24 +747,31 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
             OPENVINO_THROW("Blob is empty");
         }
 
-        std::ofstream tmpBlob("tmpBlob.blob");
+        std::ofstream tmpBlob("tmpBlob.blob", std::ios::binary);
         tmpBlob << stream.rdbuf();
         tmpBlob.close();
 
-        auto mMapBlob = ov::load_mmap_object("tmpBlob.blob");
+        auto mmapBlob = ov::load_mmap_object("tmpBlob.blob");
 
-        auto meta = compiler->parse(mMapBlob, localConfig);
+        if (!stream) {
+            OPENVINO_THROW("Failed to read data from stream!");
+        }
+        _logger.debug("Successfully read %zu bytes into blob.", graphSize);
+
+        auto meta = compiler->parse(mmapBlob, localConfig);
         meta.name = "net" + std::to_string(_compiledModelLoadCounter++);
 
         const std::shared_ptr<ov::Model> modelDummy = create_dummy_model(meta.inputs, meta.outputs);
 
         bool profiling = localConfig.get<PERF_COUNT>();
 
-        auto networkDescription = std::make_shared<const NetworkDescriptionT<std::shared_ptr<ov::MappedMemory>>>(std::move(mMapBlob), std::move(meta));
+        const auto* networkDescriptionPtr = new NetworkDescriptionT(std::move(mmapBlob), std::move(meta), reinterpret_cast<uint8_t*>(mmapBlob->data()), mmapBlob->size());
+
+        auto networkDescriptionSO = std::shared_ptr<std::remove_pointer<decltype(networkDescriptionPtr)>::type>(networkDescriptionPtr);
 
         compiledModel = std::make_shared<CompiledModel>(modelDummy,
                                                         shared_from_this(),
-                                                        networkDescription,
+                                                        networkDescriptionSO,
                                                         device,
                                                         profiling ? std::optional(compiler) : std::nullopt,
                                                         localConfig);

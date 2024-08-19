@@ -183,7 +183,7 @@ uint32_t LevelZeroCompilerAdapter::getSupportedOpsetVersion() const {
     return apiAdapter->getSupportedOpsetVersion();
 }
 
-NetworkDescription LevelZeroCompilerAdapter::compile(const std::shared_ptr<const ov::Model>& model,
+std::shared_ptr<NetworkDescription> LevelZeroCompilerAdapter::compile(const std::shared_ptr<const ov::Model>& model,
                                                      const Config& config) const {
     _logger.debug("compile start");
     return apiAdapter->compile(model, config);
@@ -195,19 +195,14 @@ ov::SupportedOpsMap LevelZeroCompilerAdapter::query(const std::shared_ptr<const 
     return apiAdapter->query(model, config);
 }
 
-NetworkMetadata LevelZeroCompilerAdapter::parse(const std::shared_ptr<ov::MappedMemory>& mmapNetwork, const Config& config) const {
+NetworkMetadata LevelZeroCompilerAdapter::parse(const std::shared_ptr<ov::MappedMemory>& mmapBlob, const Config& config) const {
     _logger.debug("parse start");
-    return apiAdapter->parse(mmapNetwork, config);
+    return apiAdapter->parse(mmapBlob, config);
 }
 
 std::vector<ov::ProfilingInfo> LevelZeroCompilerAdapter::process_profiling_output(const std::vector<uint8_t>&,
-                                                                                  const std::vector<uint8_t>&,
-                                                                                  const Config&) const {
-    OPENVINO_THROW("Profiling post-processing is not implemented.");
-}
-
-std::vector<ov::ProfilingInfo> LevelZeroCompilerAdapter::process_profiling_output(const std::vector<uint8_t>&,
-                                                                                  const std::shared_ptr<ov::MappedMemory>&,
+                                                                                  const uint8_t*,
+                                                                                  const size_t,
                                                                                   const Config&) const {
     OPENVINO_THROW("Profiling post-processing is not implemented.");
 }

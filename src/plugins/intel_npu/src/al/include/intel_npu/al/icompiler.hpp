@@ -20,6 +20,7 @@
 #include "openvino/runtime/common.hpp"
 #include "openvino/runtime/profiling_info.hpp"
 
+#include "openvino/util/mmap_object.hpp"
 namespace intel_npu {
 
 /**
@@ -134,21 +135,51 @@ struct NetworkMetadata final {
  * to provide such information about a network as description of inputs and outputs,
  * name and compiled network in a format executable by device
  */
-struct NetworkDescription final {
-    NetworkDescription(std::vector<uint8_t>&& compiledNetwork, NetworkMetadata&& metadata)
-        : compiledNetwork(std::move(compiledNetwork)),
-          metadata(std::move(metadata)) {}
-    NetworkDescription(NetworkMetadata&& metadata) : metadata(std::move(metadata)) {}
+struct NetworkDescription {
+    NetworkDescription(NetworkMetadata&& metadata)
+    : metadata(std::move(metadata)) {}
     // Force move semantics to prevent blob copies
     NetworkDescription(const NetworkDescription&) = delete;
     NetworkDescription(NetworkDescription&&) = default;
     NetworkDescription& operator=(const NetworkDescription&) = delete;
     NetworkDescription& operator=(NetworkDescription&&) = default;
-    ~NetworkDescription() = default;
-
-    std::vector<uint8_t> compiledNetwork;
+    virtual const size_t compiledNetworkSize() const {
+        OPENVINO_THROW("compiledNetworkSize needs to be overridden");
+    }
+    virtual const uint8_t* compiledNetworkData() const {
+        OPENVINO_THROW("compiledNetworkData needs to be overridden");
+    }
+    virtual ~NetworkDescription() = default;
 
     NetworkMetadata metadata;
+};
+
+template <typename T>
+struct NetworkDescriptionT final : public NetworkDescription {
+    NetworkDescriptionT(T&& compiledNetwork, NetworkMetadata&& metadata, uint8_t* data, size_t size)
+    : NetworkDescription(std::move(metadata)) {
+        this->compiledNetwork = std::move(compiledNetwork);
+        this->data = data;
+        this->size = size;
+    }
+    // Force move semantics to prevent blob copies
+    NetworkDescriptionT(const NetworkDescriptionT&) = delete;
+    NetworkDescriptionT(NetworkDescriptionT&&) = default;
+    NetworkDescriptionT& operator=(const NetworkDescriptionT&) = delete;
+    NetworkDescriptionT& operator=(NetworkDescriptionT&&) = default;
+    ~NetworkDescriptionT() override = default;
+    
+    const size_t compiledNetworkSize() const override {
+        return this->size;
+    }
+
+    const uint8_t* compiledNetworkData() const override {
+        return this->data;
+    }
+
+    T compiledNetwork;
+    size_t size;
+    uint8_t* data;
 };
 
 /**
@@ -172,7 +203,7 @@ public:
      *        including config options related to compilation
      * @return a shared pointer on an object implementing NetworkDescription interface
      */
-    virtual NetworkDescription compile(const std::shared_ptr<const ov::Model>& model, const Config& config) const = 0;
+    virtual std::shared_ptr<NetworkDescription> compile(const std::shared_ptr<const ov::Model>& model, const Config& config) const = 0;
 
     /**
      * @brief Returns information about supported layers of the network passed
@@ -194,10 +225,11 @@ public:
      *        to be used for creating network description
      * @return a shared pointer on an object implementing NetworkDescription interface
      */
-    virtual NetworkMetadata parse(const std::vector<uint8_t>& network, const Config& config) const = 0;
+    virtual NetworkMetadata parse(const std::shared_ptr<ov::MappedMemory>& mmapBlob, const Config& config) const = 0;
 
     virtual std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
-                                                                    const std::vector<uint8_t>& network,
+                                                                    const uint8_t* blobData,
+                                                                    const size_t blobSize,
                                                                     const Config& config) const = 0;
 
     // Needed only by the driver compiler, to release the graph handle

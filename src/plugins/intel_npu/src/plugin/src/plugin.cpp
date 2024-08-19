@@ -21,6 +21,8 @@
 #include "openvino/runtime/properties.hpp"
 #include "remote_context.hpp"
 
+#include "openvino/util/mmap_object.hpp"
+
 using namespace intel_npu;
 
 namespace {
@@ -737,29 +739,30 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
 
         auto graphSize = getFileSize(stream);
 
-        std::vector<uint8_t> blob(graphSize);
-        stream.read(reinterpret_cast<char*>(blob.data()), graphSize);
+        std::ofstream tmpBlob("tmpBlob.blob", std::ios::binary);
+        tmpBlob << stream.rdbuf();
+        tmpBlob.close();
+
         if (!stream) {
             OPENVINO_THROW("Failed to read data from stream!");
         }
+
+        auto mmapBlob = ov::load_mmap_object("tmpBlob.blob");
+        auto meta = compiler->parse(mmapBlob, localConfig);
+
         _logger.debug("Successfully read %zu bytes into blob.", graphSize);
 
-        auto meta = compiler->parse(blob, localConfig);
-        // If graphHandle is not a nullptr it means there is still an instance of the blob maintained inside the driver
-        // and we can release the copy of the blob here to reduce memory consumption.
-        if (meta.graphHandle != nullptr) {
-            blob.clear();
-            blob.shrink_to_fit();
-        }
         meta.name = "net" + std::to_string(_compiledModelLoadCounter++);
 
         const std::shared_ptr<ov::Model> modelDummy = create_dummy_model(meta.inputs, meta.outputs);
 
-        auto networkDescription = std::make_shared<const NetworkDescription>(std::move(blob), std::move(meta));
+        const auto* networkDescriptionPtr = new NetworkDescriptionT(std::move(mmapBlob), std::move(meta), reinterpret_cast<uint8_t*>(mmapBlob->data()), mmapBlob->size());
+
+        auto networkDescriptionSO = std::shared_ptr<std::remove_pointer<decltype(networkDescriptionPtr)>::type>(networkDescriptionPtr);
 
         compiledModel = std::make_shared<CompiledModel>(modelDummy,
                                                         shared_from_this(),
-                                                        networkDescription,
+                                                        networkDescriptionSO,
                                                         device,
                                                         compiler,
                                                         localConfig);

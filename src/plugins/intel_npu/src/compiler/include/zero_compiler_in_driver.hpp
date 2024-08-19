@@ -61,7 +61,7 @@ public:
 
     ov::SupportedOpsMap query(const std::shared_ptr<const ov::Model>& model, const Config& config) const override;
 
-    NetworkDescription compile(const std::shared_ptr<const ov::Model>& model,
+    std::shared_ptr<NetworkDescription> compile(const std::shared_ptr<const ov::Model>& model,
                                const Config& config) const override final;
 
     ze_result_t seriazlideIRModelAndCreateGraph(const std::shared_ptr<const ov::Model>& model,
@@ -69,10 +69,11 @@ public:
                                                 ze_device_graph_properties_t deviceGraphProperties,
                                                 ze_graph_handle_t& graphHandle) const;
 
-    NetworkMetadata parse(const std::vector<uint8_t>& network, const Config& config) const override final;
+    NetworkMetadata parse(const std::shared_ptr<ov::MappedMemory>& network, const Config& config) const override final;
 
     std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
-                                                            const std::vector<uint8_t>& network,
+                                                            const uint8_t* blobData,
+                                                            const size_t blobSize,
                                                             const Config& config) const override final {
         OPENVINO_THROW("Profiling post-processing is not implemented.");
     }

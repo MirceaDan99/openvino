@@ -382,8 +382,13 @@ void LevelZeroCompilerInDriver<TableExtension>::fillCompiledNetwork(
                         ". ",
                         getLatestBuildError());
 
-        auto networkDesp = const_cast<NetworkDescription*>(networkDescription.get());
-        networkDesp->compiledNetwork = std::move(blob);
+        auto* networkDespPtr = dynamic_cast<NetworkDescriptionT<std::vector<uint8_t>>*>(const_cast<NetworkDescription*>(networkDescription.get()));
+        if (networkDespPtr == nullptr) {
+            OPENVINO_THROW("NetworkDescription derived should be of std::vector<uint8_t> type!");
+        }
+        networkDespPtr->compiledNetwork = std::move(blob);
+        networkDespPtr->data = networkDespPtr->compiledNetwork.data();
+        networkDespPtr->size = networkDespPtr->compiledNetwork.size();
     }
 }
 
@@ -872,7 +877,7 @@ ze_result_t LevelZeroCompilerInDriver<TableExtension>::seriazlideIRModelAndCreat
 }
 
 template <typename TableExtension>
-NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compile(const std::shared_ptr<const ov::Model>& model,
+std::shared_ptr<NetworkDescription> LevelZeroCompilerInDriver<TableExtension>::compile(const std::shared_ptr<const ov::Model>& model,
                                                                       const Config& config) const {
     _logger.debug("compile start");
 
@@ -907,24 +912,25 @@ NetworkDescription LevelZeroCompilerInDriver<TableExtension>::compile(const std:
 
     _logger.debug("compile end");
 
-    auto networkDescription = NetworkDescription(std::move(networkMeta));
-    return networkDescription;
+    auto emptyVec = std::vector<uint8_t>();
+    auto* networkDescriptionPtr = new NetworkDescriptionT(std::move(emptyVec), std::move(networkMeta), emptyVec.data(), emptyVec.size());
+    return std::shared_ptr<std::remove_pointer_t<decltype(networkDescriptionPtr)>>(networkDescriptionPtr);
 }
 
 template <typename TableExtension>
-NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::vector<uint8_t>& network,
+NetworkMetadata LevelZeroCompilerInDriver<TableExtension>::parse(const std::shared_ptr<ov::MappedMemory>& mmapBlob,
                                                                  const Config& config) const {
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "LevelZeroCompilerInDriver::parse", "desc");
     ze_graph_handle_t graphHandle;
 
-    if (!network.empty()) {
+    if (mmapBlob->data() != nullptr && mmapBlob->size() > 0) {
         _logger.debug("Import network case");
         ze_graph_format_t format = ZE_GRAPH_FORMAT_NATIVE;
         ze_graph_desc_t desc{ZE_STRUCTURE_TYPE_GRAPH_DESC_PROPERTIES,
                              nullptr,
                              format,
-                             network.size(),
-                             network.data(),
+                             mmapBlob->size(),
+                             reinterpret_cast<uint8_t*>(mmapBlob->data()),
                              nullptr};
 
         auto result = _graphDdiTableExt->pfnCreate(_context, _deviceHandle, &desc, &graphHandle);

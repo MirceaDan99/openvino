@@ -38,6 +38,8 @@ struct Configuration {
 
     std::set<ov::hint::ModelDistributionPolicy> modelDistributionPolicy = {};
 
+    CRYPTO_CALLBACK crypto_callback;
+
     ov::AnyMap device_properties;
 };
 }  // namespace hetero

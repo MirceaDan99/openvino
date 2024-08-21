@@ -47,6 +47,8 @@ struct Configuration {
     ov::log::Level log_level = ov::log::Level::NO;
 
     ov::hint::Priority model_priority = ov::hint::Priority::DEFAULT;
+
+    CRYPTO_CALLBACK cache_crypto;
 };
 // ! [configuration:header]
 

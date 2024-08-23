@@ -51,8 +51,7 @@ target_link_libraries(${TARGET_NAME}
         openvino::npu_al
         openvino::npu_logger_utils
         openvino::runtime
-        openvino::runtime::dev
-)
+        openvino::runtime::dev)
 
 target_include_directories(${TARGET_NAME}
     PRIVATE

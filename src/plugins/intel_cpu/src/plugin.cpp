@@ -298,12 +298,6 @@ std::shared_ptr<ov::ICompiledModel> Plugin::compile_model(const std::shared_ptr<
         conf.cacheDecrypt = ov::util::codec_xor;
     }
 
-    if (conf.streamExecutorConfig.get_sub_stream_mode() ==
-        IStreamsExecutor::Config::StreamsMode::SUB_STREAMS_FOR_SOCKET) {
-        int num_sub_streams = conf.streamExecutorConfig.get_sub_streams();
-        transformations.SetSubStreamNum(num_sub_streams);
-    }
-
     transformations.PostLpt();
     transformations.Snippets();
 
@@ -611,12 +605,10 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& networkMo
         decrypt = ov::util::codec_xor;
     }
 
-    ModelDeserializer deserializer(
-        networkModel,
-        [this](const std::string& model, const ov::Tensor& weights) {
+    ModelDeserializer deserializer(networkModel, [this](const std::string& model, const ov::Tensor& weights) {
             return get_core()->read_model(model, weights, true);
         },
-        decrypt);
+    decrypt);
 
     std::shared_ptr<ov::Model> model;
     deserializer >> model;

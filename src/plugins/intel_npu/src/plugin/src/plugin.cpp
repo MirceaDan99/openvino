@@ -746,25 +746,29 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
 
         auto graphSize = getFileSize(stream);
 
-        std::vector<uint8_t> blob(graphSize);
-        stream.read(reinterpret_cast<char*>(blob.data()), graphSize);
+        std::string decryptBlob(graphSize, '\0');
+        stream.read(reinterpret_cast<char*>(decryptBlob.data()), decryptBlob.size());
         if (!stream) {
             OPENVINO_THROW("Failed to read data from stream!");
         }
         _logger.debug("Successfully read %zu bytes into blob.", graphSize);
 
-        auto meta = compiler->parse(blob, localConfig);
+        auto blob = localConfig.get<CACHE_CRYPTO_CALLBACK>().decrypt(decryptBlob);
+
+        auto meta = compiler->parse(reinterpret_cast<const uint8_t*>(blob.data()), blob.size(), localConfig);
         meta.name = "net" + std::to_string(_compiledModelLoadCounter++);
 
         const std::shared_ptr<ov::Model> modelDummy = create_dummy_model(meta.inputs, meta.outputs);
 
         bool profiling = localConfig.get<PERF_COUNT>();
 
-        auto networkDescription = std::make_shared<const NetworkDescription>(std::move(blob), std::move(meta));
+        const auto* networkDescriptionPtr = new NetworkDescriptionT(std::move(blob), std::move(meta), reinterpret_cast<const uint8_t*>(blob.data()), blob.size());
+
+        auto networkDescriptionSO = std::shared_ptr<std::remove_pointer<decltype(networkDescriptionPtr)>::type>(networkDescriptionPtr);
 
         compiledModel = std::make_shared<CompiledModel>(modelDummy,
                                                         shared_from_this(),
-                                                        networkDescription,
+                                                        networkDescriptionSO,
                                                         device,
                                                         profiling ? std::optional(compiler) : std::nullopt,
                                                         localConfig);

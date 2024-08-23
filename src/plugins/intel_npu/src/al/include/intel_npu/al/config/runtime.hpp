@@ -6,6 +6,7 @@
 
 #include "intel_npu/al/config/config.hpp"
 #include "npu_private_properties.hpp"
+#include "openvino/util/codec_xor.hpp"
 #include "openvino/runtime/intel_npu/properties.hpp"
 #include "openvino/runtime/internal_properties.hpp"
 #include "openvino/runtime/properties.hpp"
@@ -221,4 +222,30 @@ struct TURBO final : OptionBase<TURBO, bool> {
         return OptionMode::RunTime;
     }
 };
+
+//
+// CACHE_CRYPTO_CALLBACK
+//
+struct CACHE_CRYPTO_CALLBACK final : OptionBase<CACHE_CRYPTO_CALLBACK, ov::EncryptionCallbacks> {
+    static std::string_view key() {
+        return ov::cache_crypto_callback.name();
+    }
+
+    static ov::EncryptionCallbacks defaultValue() {
+        return ov::EncryptionCallbacks{ov::util::codec_xor, ov::util::codec_xor};
+    }
+
+    static ov::EncryptionCallbacks parse(std::string_view val);
+
+    static std::string toString(const ov::EncryptionCallbacks& val);
+
+    static std::string_view getTypeName() {
+        return "ov::EncryptionCallbacks";
+    }
+
+    static OptionMode mode() {
+        return OptionMode::RunTime;
+    }
+};
+
 }  // namespace intel_npu

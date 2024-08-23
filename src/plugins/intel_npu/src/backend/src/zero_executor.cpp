@@ -72,8 +72,8 @@ ZeroExecutor::ZeroExecutor(const std::shared_ptr<const ZeroInitStructsHolder>& i
     ze_graph_desc_t desc{ZE_STRUCTURE_TYPE_GRAPH_DESC_PROPERTIES,
                          nullptr,
                          ZE_GRAPH_FORMAT_NATIVE,
-                         _networkDesc->compiledNetwork.size(),
-                         _networkDesc->compiledNetwork.data(),
+                         _networkDesc->compiledNetworkSize(),
+                         _networkDesc->compiledNetworkData(),
                          nullptr};
     zeroUtils::throwOnFail(
         "pfnCreate",

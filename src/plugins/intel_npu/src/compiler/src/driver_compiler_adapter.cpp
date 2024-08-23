@@ -183,7 +183,7 @@ uint32_t LevelZeroCompilerAdapter::getSupportedOpsetVersion() const {
     return apiAdapter->getSupportedOpsetVersion();
 }
 
-NetworkDescription LevelZeroCompilerAdapter::compile(const std::shared_ptr<const ov::Model>& model,
+std::shared_ptr<NetworkDescription> LevelZeroCompilerAdapter::compile(const std::shared_ptr<const ov::Model>& model,
                                                      const Config& config) const {
     _logger.debug("compile start");
     return apiAdapter->compile(model, config);
@@ -195,13 +195,14 @@ ov::SupportedOpsMap LevelZeroCompilerAdapter::query(const std::shared_ptr<const 
     return apiAdapter->query(model, config);
 }
 
-NetworkMetadata LevelZeroCompilerAdapter::parse(const std::vector<uint8_t>& network, const Config& config) const {
+NetworkMetadata LevelZeroCompilerAdapter::parse(const uint8_t* blobData, size_t blobSize, const Config& config) const {
     _logger.debug("parse start");
-    return apiAdapter->parse(network, config);
+    return apiAdapter->parse(blobData, blobSize, config);
 }
 
 std::vector<ov::ProfilingInfo> LevelZeroCompilerAdapter::process_profiling_output(const std::vector<uint8_t>&,
-                                                                                  const std::vector<uint8_t>&,
+                                                                                  const uint8_t*,
+                                                                                  size_t,
                                                                                   const Config&) const {
     OPENVINO_THROW("Profiling post-processing is not implemented.");
 }

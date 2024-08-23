@@ -61,7 +61,6 @@ void ExecutionConfig::set_default() {
         std::make_tuple(ov::hint::dynamic_quantization_group_size, 0),
         std::make_tuple(ov::intel_gpu::hint::enable_kernels_reuse, false),
         std::make_tuple(ov::internal::save_to_cache, false),
-        std::make_tuple(ov::cache_crypto_callback, std::vector<std::function<std::string(const std::string&)>>{}),
 
         // Legacy API properties
         std::make_tuple(ov::intel_gpu::nv12_two_inputs, false),

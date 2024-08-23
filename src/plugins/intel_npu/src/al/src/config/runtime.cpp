@@ -25,6 +25,7 @@ void intel_npu::registerRunTimeOptions(OptionsDesc& desc) {
     desc.add<ENABLE_CPU_PINNING>();
     desc.add<WORKLOAD_TYPE>();
     desc.add<TURBO>();
+    desc.add<CACHE_CRYPTO_CALLBACK>();
 }
 
 // Heuristically obtained number. Varies depending on the values of PLATFORM and PERFORMANCE_HINT
@@ -150,5 +151,23 @@ ov::WorkloadType intel_npu::WORKLOAD_TYPE::parse(std::string_view val) {
 std::string intel_npu::WORKLOAD_TYPE::toString(const ov::WorkloadType& val) {
     std::ostringstream ss;
     ss << val;
+    return ss.str();
+}
+
+//
+// CACHE_CRYPTO_CALLBACK
+//
+
+ov::EncryptionCallbacks intel_npu::CACHE_CRYPTO_CALLBACK::parse(std::string_view val) {
+    std::istringstream ss = std::istringstream(std::string(val));
+    uint64_t encryptAddr, decryptAddr;
+    ss >> encryptAddr >> decryptAddr;
+    ov::EncryptionCallbacks encryptionCallbacks {reinterpret_cast<std::string(*)(const std::string&)>((void*)encryptAddr), reinterpret_cast<std::string(*)(const std::string&)>((void*)decryptAddr)};
+    return encryptionCallbacks;
+}
+
+std::string intel_npu::CACHE_CRYPTO_CALLBACK::toString(const ov::EncryptionCallbacks& val) {
+    std::ostringstream ss;
+    ss << static_cast<const void*>(val.encrypt.target<std::string(*)(const std::string&)>()) << static_cast<const void*>(val.decrypt.target<std::string(*)(const std::string&)>());
     return ss.str();
 }

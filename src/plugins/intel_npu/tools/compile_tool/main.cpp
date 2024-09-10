@@ -572,14 +572,17 @@ int main(int argc, char* argv[]) {
             outputName = getFileNameFromPath(fileNameNoExt(FLAGS_m)) + ".blob";
         }
 
-        std::ofstream outputFile{outputName, std::ios::out | std::ios::binary};
-        if (!outputFile.is_open()) {
-            std::cout << "Outputting file " << outputName << " can't be opened for writing" << std::endl;
-            return EXIT_FAILURE;
-        } else {
-            std::cout << "Writing into file - " << outputName << std::endl;
-            compiledModel.export_model(outputFile);
-        }
+        // std::ofstream outputFile{outputName, std::ios::out | std::ios::binary};
+        std::ostringstream oStringStream;
+        // if (!outputFile.is_open()) {
+        //    std::cout << "Outputting file " << outputName << " can't be opened for writing" << std::endl;
+        //    return EXIT_FAILURE;
+        // } else {
+        //    std::cout << "Writing into file - " << outputName << std::endl;
+            // compiledModel.export_model(outputFile);
+            compiledModel.export_model(oStringStream);
+        std::cout << oStringStream.str()[1] << std::endl;
+        // }
         std::cout << "Done. LoadNetwork time elapsed: " << loadNetworkTimeElapsed.count() << " ms" << std::endl;
     } catch (const std::exception& error) {
         std::cerr << error.what() << std::endl;

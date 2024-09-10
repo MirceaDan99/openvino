@@ -363,46 +363,67 @@ void LevelZeroCompilerInDriver<TableExtension>::release(std::shared_ptr<const Ne
 }
 
 template <typename TableExtension>
-std::vector<uint8_t> LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
-    std::shared_ptr<const NetworkDescription> networkDescription) {
-    if (networkDescription->metadata.graphHandle != nullptr && networkDescription->compiledNetwork.size() == 0) {
-        _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
-        ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription->metadata.graphHandle);
-
-        // Get blob size first
+void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
+    std::shared_ptr<const NetworkDescription> networkDescription, std::ostream& stream) {
+    
+        std::ostringstream* oStringStreamPtr = dynamic_cast<std::ostringstream*>(&stream);
+        std::vector<uint8_t> blob;
+        uint8_t* blobData;
         size_t blobSize = -1;
 
-        auto result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
+        if (networkDescription->metadata.graphHandle != nullptr && networkDescription->compiledNetwork.size() == 0) {
+            _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
+            ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription->metadata.graphHandle);
 
-        OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
-                        "Failed to compile network. L0 pfnGetNativeBinary get blob size",
-                        " result: ",
-                        ze_result_to_string(result),
-                        ", code 0x",
-                        std::hex,
-                        uint64_t(result),
-                        ". ",
-                        getLatestBuildError());
+            // Get blob size first
+            std::vector<uint8_t> blob;
 
-        std::vector<uint8_t> blob(blobSize);
-        // Get blob data
-        result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, blob.data());
+            // Get blob data
+            auto result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
+            OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
+                            " result: ",
+                            ze_result_to_string(result),
+                            ", code 0x",
+                            std::hex,
+                            uint64_t(result),
+                            ". ",
+                            getLatestBuildError());
+        
+            if (oStringStreamPtr != nullptr) {
+                oStringStreamPtr->str().resize(blobSize);
+                blobData = reinterpret_cast<uint8_t*>(oStringStreamPtr->str().data());
+            } else {
+                blob.resize(blobSize);
+                blobData = blob.data();
+            }
+            
+            // Get blob data
+            result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, blobData);
 
-        OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
-                        "Failed to compile network. L0 pfnGetNativeBinary get blob data",
-                        " result: ",
-                        ze_result_to_string(result),
-                        ", code 0x",
-                        std::hex,
-                        uint64_t(result),
-                        ". ",
-                        getLatestBuildError());
-        _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
-        return blob;
-    } else {
-        _logger.info("return the blob from network description");
-        return networkDescription->compiledNetwork;
-    }
+            OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
+                            "Failed to compile network. L0 pfnGetNativeBinary get blob data",
+                            " result: ",
+                            ze_result_to_string(result),
+                            ", code 0x",
+                            std::hex,
+                            uint64_t(result),
+                            ". ",
+                            getLatestBuildError());
+            _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
+            // return blob;
+        } else {
+            _logger.info("return the blob from network description");
+            if (oStringStreamPtr != nullptr) {
+                // some magic trick here so oStringStreamPtr->str(CustomStringThatWontCopyBuffer(networkDescription->compiledNetwork.data(), networkDescription->compiledNetwork.size());
+            } else {
+                blobData = std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.data();
+                blobSize = networkDescription->compiledNetwork.size();
+            }
+            // return networkDescription->compiledNetwork;
+        }
+        if (oStringStreamPtr == nullptr) {
+            stream.write(reinterpret_cast<const char*>(blobData), blobSize);
+        }
 }
 
 template <typename TableExtension>

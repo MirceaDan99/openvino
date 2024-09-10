@@ -582,6 +582,7 @@ int main(int argc, char* argv[]) {
             // compiledModel.export_model(outputFile);
             compiledModel.export_model(oStringStream);
         std::cout << oStringStream.str()[1] << std::endl;
+        std::cout << oStringStream.str()[2] << std::endl;
         // }
         std::cout << "Done. LoadNetwork time elapsed: " << loadNetworkTimeElapsed.count() << " ms" << std::endl;
     } catch (const std::exception& error) {

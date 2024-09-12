@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <intel_npu/utils/customstringbuf/customstringbuf.hpp>
+
 #include <gflags/gflags.h>
 
 #include "openvino/core/partial_shape.hpp"

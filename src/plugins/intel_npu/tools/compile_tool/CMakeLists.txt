@@ -20,6 +20,7 @@ ov_add_target(ADD_CPPLINT
               TYPE EXECUTABLE
               NAME ${TARGET_NAME}
               ROOT ${CMAKE_CURRENT_SOURCE_DIR}
+              INCLUDES "${NPU_PLUGIN_SOURCE_DIR}/src/utils/include"
               LINK_LIBRARIES
                   PRIVATE
                       openvino::runtime

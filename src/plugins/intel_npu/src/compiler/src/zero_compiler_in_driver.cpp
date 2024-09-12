@@ -364,31 +364,17 @@ void LevelZeroCompilerInDriver<TableExtension>::release(std::shared_ptr<const Ne
 
 class CustomStringBuf : public std::stringbuf {
 public:
-        CustomStringBuf(std::string&& moveStr) {
-            this->obj = std::move(moveStr);
-            this->setp(&this->obj[0], &this->obj[0] + this->obj.size());
-            this->setg(&this->obj[0], &this->obj[0] + 1, &this->obj[0] + this->obj.size());
-            this->pbump(this->obj.size());
-        }
-
-        std::string str() {
-            return this->obj;
-        }
-private:
-    std::string obj;
+    CustomStringBuf(std::vector<uint8_t>& blob) {
+        this->setp(reinterpret_cast<char*>(blob.data()), reinterpret_cast<char*>(blob.data()) + blob.size());
+        this->setg(reinterpret_cast<char*>(blob.data()), reinterpret_cast<char*>(blob.data()) + 1, reinterpret_cast<char*>(blob.data()) + blob.size());
+        this->pbump(blob.size());
+    }
 };
 
-// new method for export_model(ostringstream) ?
 template <typename TableExtension>
 void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
     std::shared_ptr<const NetworkDescription> networkDescription, std::ostream& stream) {
     
-    std::ostringstream* oStringStreamPtr = dynamic_cast<std::ostringstream*>(&stream);
-    std::vector<uint8_t> blob;
-    std::string blobStr;
-    uint8_t* blobData;
-    size_t blobSize = -1;
-
     if (networkDescription->metadata.graphHandle != nullptr && networkDescription->compiledNetwork.size() == 0) {
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
         ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription->metadata.graphHandle);
@@ -405,17 +391,10 @@ void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
                         uint64_t(result),
                         ". ",
                         getLatestBuildError());
-    
-        if (oStringStreamPtr != nullptr) {
-            blobStr.resize(blobSize);
-            blobData = reinterpret_cast<uint8_t*>(&blobStr[0]);
-        } else {
-            blob.resize(blobSize);
-            blobData = blob.data();
-        }
-        
+
+        std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.resize(blobSize);
         // Get blob data
-        result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, blobData);
+        result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.data());
 
         OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
                         "Failed to compile network. L0 pfnGetNativeBinary get blob data",
@@ -427,29 +406,16 @@ void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
                         ". ",
                         getLatestBuildError());
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
-        // return blob;
     } else {
         _logger.info("return the blob from network description");
-        if (oStringStreamPtr != nullptr) {
-            // some magic trick here so oStringStreamPtr->str(CustomStringThatWontCopyBuffer(networkDescription->compiledNetwork.data(), networkDescription->compiledNetwork.size());
-        } else {
-            blobData = std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.data();
-            blobSize = networkDescription->compiledNetwork.size();
-        }
-        // return networkDescription->compiledNetwork;
     }
-    if (oStringStreamPtr == nullptr) {
-        stream.write(reinterpret_cast<const char*>(blobData), blobSize);
+
+    std::ostringstream* oStringStreamPtr = dynamic_cast<std::ostringstream*>(&stream);
+    if (oStringStreamPtr != nullptr) {
+        CustomStringBuf customStringBuf(std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork);
+        oStringStreamPtr->rdbuf()->swap(customStringBuf);
     } else {
-        {
-            // Only for CXX17
-            stream.rdbuf(new CustomStringBuf(std::move(blobStr)));
-            oStringStreamPtr->rdbuf()->swap(*dynamic_cast<CustomStringBuf*>(stream.rdbuf()));
-        }
-        // By CXX20 we may use move semantics and avoid use of CustomStringBuf class 
-        // oStringStreamPtr->str(std::move(blobStr));
-        std::cout << oStringStreamPtr->str()[1] << std::endl;
-        std::cout << oStringStreamPtr->str()[2] << std::endl;
+        stream.write(reinterpret_cast<const char*>(networkDescription->compiledNetwork.data()), networkDescription->compiledNetwork.size());
     }
 }
 

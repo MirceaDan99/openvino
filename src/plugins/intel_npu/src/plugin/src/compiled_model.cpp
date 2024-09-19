@@ -139,18 +139,20 @@ std::shared_ptr<ov::ISyncInferRequest> CompiledModel::create_sync_infer_request(
 
 void CompiledModel::export_model(std::ostream& stream) const {
     _logger.debug("CompiledModel::export_model");
-    _compiler->getCompiledNetwork(_networkPtr, stream);
-    // const auto&& blob = _compiler->getCompiledNetwork(_networkPtr, stream);
-    /*stream.write(reinterpret_cast<const char*>(blob.data()), blob.size());
-    std::stringstream str;
-    str << "Blob size: " << blob.size() << ", hash: " << std::hex << hash(blob);
-    _logger.info(str.str().c_str());
+    const auto&& blob = _compiler->getCompiledNetwork(_networkPtr);
+    stream.write(reinterpret_cast<const char*>(blob.data()), blob.size());
 
-    if (!stream) {
-        _logger.error("Write blob to stream failed. Blob is broken!");
-    } else {
-        _logger.info("Write blob to stream successfully.");
-    }*/
+    if (_logger.level() == ov::log::Level::INFO) {
+        std::stringstream str;
+        str << "Blob size: " << blob.size() << ", hash: " << std::hex << hash(blob);
+        _logger.info(str.str().c_str());
+
+        if (!stream) {
+            _logger.error("Write blob to stream failed. Blob is broken!");
+        } else {
+            _logger.info("Write blob to stream successfully.");
+        }
+    }
 }
 
 std::shared_ptr<const ov::Model> CompiledModel::get_runtime_model() const {

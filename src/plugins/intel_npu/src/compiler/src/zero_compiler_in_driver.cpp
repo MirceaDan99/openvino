@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <intel_npu/utils/customstringbuf/customstringbuf.hpp>
-
 #include "zero_compiler_in_driver.hpp"
 
 #include <fstream>
@@ -365,20 +363,16 @@ void LevelZeroCompilerInDriver<TableExtension>::release(std::shared_ptr<const Ne
 }
 
 template <typename TableExtension>
-void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
-    std::shared_ptr<const NetworkDescription> networkDescription, std::ostream& stream) {
-    
-    std::ostringstream* oStringStreamPtr = dynamic_cast<std::ostringstream*>(&stream);
-    uint8_t* blobData;
-    std::string blobStr;
-
+std::vector<uint8_t> LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
+    std::shared_ptr<const NetworkDescription> networkDescription) {
     if (networkDescription->metadata.graphHandle != nullptr && networkDescription->compiledNetwork.size() == 0) {
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
         ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription->metadata.graphHandle);
 
         // Get blob size first
         size_t blobSize = -1;
-        auto result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
+
+        auto result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
 
         OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
                         "Failed to compile network. L0 pfnGetNativeBinary get blob size",
@@ -390,16 +384,9 @@ void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
                         ". ",
                         getLatestBuildError());
 
-        if (oStringStreamPtr != nullptr) {
-            blobStr.resize(blobSize);
-            blobData = reinterpret_cast<uint8_t*>(&blobStr[0]);
-        } else {
-            std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.resize(blobSize);
-            blobData = std::const_pointer_cast<NetworkDescription>(networkDescription)->compiledNetwork.data();
-        }
-        
+        std::vector<uint8_t> blob(blobSize);
         // Get blob data
-        result = _graphDdiTableExt->pfnGetNativeBinary(graphHandle, &blobSize, blobData);
+        result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, blob.data());
 
         OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
                         "Failed to compile network. L0 pfnGetNativeBinary get blob data",
@@ -411,26 +398,10 @@ void LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
                         ". ",
                         getLatestBuildError());
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
+        return blob;
     } else {
         _logger.info("return the blob from network description");
-    }
-
-    if (oStringStreamPtr != nullptr) {
-        CustomStringBuf* customStringBufPtr = new CustomStringBuf(std::move(blobStr));
-        stream.rdbuf(customStringBufPtr);
-        oStringStreamPtr->rdbuf()->swap(*customStringBufPtr);
-
-        int index = stream.xalloc();
-        stream.pword(index) = customStringBufPtr;
-        stream.register_callback([](std::ios_base::event evt, std::ios_base& str, int idx){
-            if (evt == std::ios_base::erase_event) 
-            {
-                CustomStringBuf* ptr = static_cast<CustomStringBuf*>(str.pword(idx));
-                delete ptr;
-            }
-        }, index);
-    } else {
-        stream.write(reinterpret_cast<const char*>(networkDescription->compiledNetwork.data()), networkDescription->compiledNetwork.size());
+        return networkDescription->compiledNetwork;
     }
 }
 

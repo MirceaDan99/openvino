@@ -229,10 +229,17 @@ public:
     // Driver compiler can use this to release graphHandle, if we do not have executor
     virtual void release([[maybe_unused]] std::shared_ptr<const NetworkDescription> networkDescription){};
 
+<<<<<<< HEAD
     virtual CompiledNetwork getCompiledNetwork(const NetworkDescription& networkDescription) {
         return CompiledNetwork(networkDescription.compiledNetwork.data(),
                                networkDescription.compiledNetwork.size(),
                                networkDescription.compiledNetwork);
+=======
+    virtual CompiledNetwork getCompiledNetwork(std::shared_ptr<const NetworkDescription> networkDescription) {
+        return CompiledNetwork{networkDescription->compiledNetwork.data(),
+                               networkDescription->compiledNetwork.size(),
+                               networkDescription->compiledNetwork};
+>>>>>>> 7d2fd96a3c (Fix clang formats)
     }
 
 protected:

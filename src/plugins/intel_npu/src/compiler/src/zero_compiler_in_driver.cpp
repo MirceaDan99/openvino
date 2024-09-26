@@ -364,11 +364,13 @@ void LevelZeroCompilerInDriver<TableExtension>::release(std::shared_ptr<const Ne
 
 template <typename TableExtension>
 template <typename T, std::enable_if_t<UseCopyForNativeBinary(T), bool>>
-void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                                                                ze_graph_handle_t graphHandle,
-                                                                std::vector<uint8_t>& blob,
-                                                                uint8_t*& blobPtr,
-                                                                size_t& blobSize) const {
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                                                                ze_graph_handle_t graphHandle) const {
+    
+    Mallocator<uint8_t> mal;
+    std::vector<uint8_t, Mallocator<uint8_t>> blob(mal);
+    size_t blobSize;
+    
     // Get blob size first
     auto result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
     blob.resize(blobSize);
@@ -396,16 +398,17 @@ void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditabl
                     ". ",
                     getLatestBuildError());
 
-    blobPtr = blob.data();
+    return blob;
 }
 
 template <typename TableExtension>
 template <typename T, std::enable_if_t<!UseCopyForNativeBinary(T), bool>>
-void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                                                                ze_graph_handle_t graphHandle,
-                                                                std::vector<uint8_t>& /* unusedBlob */,
-                                                                uint8_t*& blobPtr,
-                                                                size_t& blobSize) const {
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                                                                ze_graph_handle_t graphHandle) const {
+
+    uint8_t* blobPtr;
+    size_t blobSize;
+
     // Get blob ptr and size
     auto result = _graphDdiTableExt.pfnGetNativeBinary2(graphHandle, &blobSize, &blobPtr);
 
@@ -418,28 +421,33 @@ void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditabl
                     uint64_t(result),
                     ". ",
                     getLatestBuildError());
+
+    Mallocator<uint8_t> mal(blobPtr, blobSize);
+    return std::vector<uint8_t, Mallocator<uint8_t>>(mal);
+
+    // Mallocator<uint8_t> mal(blobPtr, blobSize);
+    // const std::vector<uint8_t, Mallocator<uint8_t>> vec(mal);
+    // vec.reserve(blobSize);
+    // vec.resize(blobSize);
+    // uint8_t* c = vec.data();
 }
 
 template <typename TableExtension>
-CompiledNetwork LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
     const NetworkDescription& networkDescription) {
     if (networkDescription.metadata.graphHandle != nullptr && networkDescription.compiledNetwork.size() == 0) {
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
         ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription.metadata.graphHandle);
 
-        uint8_t* blobPtr = nullptr;
-        size_t blobSize = -1;
-        std::vector<uint8_t> blob;
-
-        getNativeBinary(_graphDdiTableExt, graphHandle, blob, blobPtr, blobSize);
-
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
-        return CompiledNetwork(blobPtr, blobSize, std::move(blob));
+        return getNativeBinary(_graphDdiTableExt, graphHandle);
     }
     _logger.info("return the blob from network description");
-    return CompiledNetwork(networkDescription.compiledNetwork.data(),
-                           networkDescription.compiledNetwork.size(),
-                           networkDescription.compiledNetwork);
+    
+    Mallocator<uint8_t> mal(networkDescription.compiledNetwork.data(), networkDescription.compiledNetwork.size());
+    return std::vector<uint8_t, Mallocator<uint8_t>>(mal);
+
+    
 }
 
 template <typename TableExtension>

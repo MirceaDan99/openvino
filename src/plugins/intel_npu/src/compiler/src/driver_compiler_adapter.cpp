@@ -115,7 +115,7 @@ void LevelZeroCompilerAdapter::release(std::shared_ptr<const NetworkDescription>
     apiAdapter->release(std::move(networkDescription));
 }
 
-CompiledNetwork LevelZeroCompilerAdapter::getCompiledNetwork(const NetworkDescription& networkDescription) {
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerAdapter::getCompiledNetwork(const NetworkDescription& networkDescription) {
     _logger.info("getCompiledNetwork - using adapter to perform getCompiledNetwork(networkDescription)");
     return apiAdapter->getCompiledNetwork(networkDescription);
 }

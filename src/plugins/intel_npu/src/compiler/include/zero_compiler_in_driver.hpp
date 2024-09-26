@@ -105,7 +105,7 @@ public:
 
     void release(std::shared_ptr<const NetworkDescription> networkDescription) override;
 
-    std::vector<uint8_t> getCompiledNetwork(const NetworkDescription& networkDescription) override;
+    std::vector<uint8_t, Mallocator<uint8_t>> getCompiledNetwork(const NetworkDescription& networkDescription) override;
 
 private:
     NetworkMetadata getNetworkMeta(ze_graph_handle_t graphHandle) const;
@@ -129,14 +129,12 @@ private:
                      std::vector<IODescriptor>& outputs) const;
 
     template <typename T = TableExtension, typename std::enable_if_t<UseCopyForNativeBinary(T), bool> = true>
-    void getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                         ze_graph_handle_t graphHandle,
-                         std::vector<uint8_t>& blob) const;
+    std::vector<uint8_t, Mallocator<uint8_t>> getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                         ze_graph_handle_t graphHandle) const;
 
     template <typename T = TableExtension, typename std::enable_if_t<!UseCopyForNativeBinary(T), bool> = true>
-    void getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                         ze_graph_handle_t graphHandle,
-                         std::vector<uint8_t>& blob) const;
+    std::vector<uint8_t, Mallocator<uint8_t>> getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                         ze_graph_handle_t graphHandle) const;
 
     template <typename T = TableExtension, typename std::enable_if_t<SupportAPIGraphQueryNetworkV2(T), bool> = true>
     ze_result_t seriazlideIRModelAndQueryNetworkCreateV2(const std::shared_ptr<const ov::Model>& model,

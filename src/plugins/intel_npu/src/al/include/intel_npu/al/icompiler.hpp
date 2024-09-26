@@ -151,6 +151,108 @@ struct NetworkDescription final {
     NetworkMetadata metadata;
 };
 
+template<class T>
+struct Mallocator
+{
+    typedef T value_type;
+ 
+    Mallocator() : _preAllocatedMem(nullptr), _constPreAllocatedMem(nullptr), _size(0), _allocatedByUs(true) {}
+
+    Mallocator(void* preAllocatedMem, size_t size) : _size(size), _allocatedByUs(false), _constPreAllocatedMem(nullptr) {
+        _preAllocatedMem = static_cast<void*>(new(preAllocatedMem)char[_size * sizeof(T)]);
+    }
+
+    Mallocator(const void* constPreAllocatedMem, size_t size) : _size(size), _allocatedByUs(false), _preAllocatedMem(nullptr), _constPreAllocatedMem(constPreAllocatedMem) {}
+ 
+    template<class U>
+    constexpr Mallocator(const Mallocator <U>& other) noexcept {
+        // Workaround for MSFT std::_Container_Proxy
+        _allocatedByUs = true;
+        _preAllocatedMem = other._preAllocatedMem;
+        _constPreAllocatedMem = other._constPreAllocatedMem;
+        _size = other._size;
+    }
+
+    constexpr Mallocator(const Mallocator& other) {
+        _preAllocatedMem = other._preAllocatedMem;
+        _constPreAllocatedMem = other._constPreAllocatedMem;
+        _size = other._size;
+        if (_preAllocatedMem != nullptr || _constPreAllocatedMem != nullptr) {
+            _allocatedByUs = false; // prevent delete when already allocated
+        } else {
+            _allocatedByUs = other._allocatedByUs;
+        }  
+    }
+
+    constexpr Mallocator(Mallocator&& other) {
+        _preAllocatedMem = other._preAllocatedMem;
+        _constPreAllocatedMem = other._constPreAllocatedMem;
+        _size = other._size;
+        _allocatedByUs = other._allocatedByUs;
+
+        other._preAllocatedMem = nullptr;
+        other._constPreAllocatedMem = nullptr;
+        other._size = 0;
+    }
+ 
+    [[nodiscard]] T* allocate(std::size_t n)
+    {
+        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+            throw std::bad_array_new_length();
+        }
+
+        if (!_allocatedByUs) {
+            return (T*)_preAllocatedMem;
+        }
+
+        T* p = static_cast<T*>(std::malloc(n * sizeof(T)));
+        _preAllocatedMem = (void*)p;
+        _size = n;
+        return p;
+    }
+ 
+    void deallocate(T* p, std::size_t n) noexcept
+    {
+        if (_allocatedByUs) {
+            delete p;
+        }
+    }
+
+    const T* data() {
+        if (_allocatedByUs) {
+            return (const T*)_preAllocatedMem;
+        }
+        if (_preAllocatedMem != nullptr) {
+            return (const T*)_preAllocatedMem;
+        }
+        if (_constPreAllocatedMem != nullptr) {
+            return (const T*)_constPreAllocatedMem;
+        }
+        throw std::bad_alloc();
+    }
+
+    size_t size() {
+        return _size;
+    }
+private:
+
+    void* _preAllocatedMem;
+    const void* _constPreAllocatedMem;
+    size_t _size;
+
+    bool _allocatedByUs;
+
+    template <typename>
+    friend struct Mallocator;
+};
+ 
+template<class T, class U>
+bool operator==(const Mallocator <T>&, const Mallocator <U>&) { return true; }
+ 
+template<class T, class U>
+bool operator!=(const Mallocator <T>&, const Mallocator <U>&) { return false; }
+
+
 /**
  * @interface ICompiler
  * @brief An interface to be implemented by a concrete compiler to provide
@@ -203,8 +305,10 @@ public:
     // Driver compiler can use this to release graphHandle, if we do not have executor
     virtual void release([[maybe_unused]] std::shared_ptr<const NetworkDescription> networkDescription){};
 
-    virtual std::vector<uint8_t> getCompiledNetwork(const NetworkDescription& networkDescription) {
-        return networkDescription.compiledNetwork;
+    virtual std::vector<uint8_t, Mallocator<uint8_t>> getCompiledNetwork(const NetworkDescription& networkDescription) {
+        Mallocator<uint8_t> mal(networkDescription.compiledNetwork.data(),
+                                networkDescription.compiledNetwork.size());
+        return std::vector<uint8_t, Mallocator<uint8_t>>(mal);
     }
 
 protected:

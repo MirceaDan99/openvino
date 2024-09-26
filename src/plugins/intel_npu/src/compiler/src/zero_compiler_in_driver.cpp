@@ -362,61 +362,14 @@ void LevelZeroCompilerInDriver<TableExtension>::release(std::shared_ptr<const Ne
     _logger.debug("release completed");
 }
 
-/*
-FAILED: src/plugins/intel_npu/src/compiler/CMakeFiles/openvino_npu_driver_compiler_adapter.dir/src/zero_compiler_in_driver.cpp.obj
-C:\Work\mirceaau\ccache-4.8.2-windows-x86_64\ccache C:\PROGRA~2\MICROS~2\2019\BUILDT~1\VC\Tools\MSVC\1429~1.301\bin\Hostx64\x64\cl.exe  /nologo /TP -DIN_OV_COMPONENT -DNPU_PLUGIN_DEVELOPER_BUILD -DOV_BUILD_POSTFIX=\"d\" -DOV_NATIVE_PARENT_PROJECT_ROOT_DIR=\"openvino\" -DOV_THREAD=OV_THREAD_TBB -DSNIPPETS_DEBUG_CAPS -DTBB_USE_DEBUG -D__TBB_NO_IMPLICIT_LINKAGE=1 -IC:\Work\mirceaau\openvino\src\plugins\intel_npu\src\compiler\include -IC:\Work\mirceaau\openvino\src\plugins\intel_npu\src\al\include -IC:\Work\mirceaau\openvino\src\plugins\intel_npu\src\utils\include -IC:\Work\mirceaau\openvino\src\inference\dev_api -IC:\Work\mirceaau\openvino\src\core\include -IC:\Work\mirceaau\openvino\src\frontends\common\include -IC:\Work\mirceaau\openvino\src\inference\include -IC:\Work\mirceaau\openvino\src\core\dev_api -IC:\Work\mirceaau\openvino\src\common\transformations\include -IC:\Work\mirceaau\openvino\src\common\low_precision_transformations\include -IC:\Work\mirceaau\openvino\src\common\itt\include -IC:\Work\mirceaau\openvino\src\common\util\include -IC:\Work\mirceaau\openvino\thirdparty\pugixml\src -IC:\Work\mirceaau\openvino\thirdparty\level_zero\level-zero\include -IC:\Work\mirceaau\openvino\src\plugins\intel_npu\thirdparty\level-zero-ext -IC:\Work\mirceaau\openvino\src\plugins\intel_npu\src\backend\include -external:IC:\Work\mirceaau\openvino\temp\tbb\include -external:W0 /DWIN32 /D_WINDOWS /GR /EHsc /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS /EHsc /Gy /W3 /bigobj /MP /wd4251 /wd4275  /Z7 /Ob0 /Od /RTC1 -std:c++17 -MDd /d1trimfile:C:\Work\mirceaau\openvino\ /d1trimfile:C:/Work/mirceaau/openvino/ -WX /showIncludes /Fosrc\plugins\intel_npu\src\compiler\CMakeFiles\openvino_npu_driver_compiler_adapter.dir\src\zero_compiler_in_driver.cpp.obj /FdC:\Work\mirceaau\openvino\bin\intel64\Debug\ /FS -c C:\Work\mirceaau\openvino\src\plugins\intel_npu\src\compiler\src\zero_compiler_in_driver.cpp
-C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\vector(701): error C2440: 'static_cast': cannot convert from 'intel_npu::driverCompilerAdapter::PreAllocatedAllocator<uint8_t>' to 'intel_npu::driverCompilerAdapter::PreAllocatedAllocator<U>'
-        with
-        [
-            U=std::_Container_proxy
-        ]
-*/
-template <typename T>
-class PreAllocatedAllocator
-{
-public:
-        using value_type = T;
-
-        // Constructor accepts a pointer to the pre-allocated memory block
-        PreAllocatedAllocator(T* pre_allocated, std::size_t max_size)
-            : memory(pre_allocated), max_size(max_size), offset(0) {}
-
-        // Allocator constructor and copy constructor
-        PreAllocatedAllocator(const PreAllocatedAllocator<T>& other)
-            : memory(other.memory), max_size(other.max_size), offset(other.offset) {}
-
-        T* allocate(std::size_t n) {
-            if (offset + n > max_size) {
-                throw std::bad_alloc();
-            }
-            T* ptr = memory + offset;
-            offset += n;
-            return ptr;
-        }
-
-        void deallocate(T*, std::size_t) {
-            // Deallocate does nothing since memory is externally managed
-        }
-
-        template <typename U>
-        struct rebind {
-            using other = PreAllocatedAllocator<U>;
-        };
-
-private:
-        T* memory;
-        std::size_t max_size;
-        std::size_t offset;
-
-};
-
 template <typename TableExtension>
 template <typename T, std::enable_if_t<UseCopyForNativeBinary(T), bool>>
-void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                                                                ze_graph_handle_t graphHandle,
-                                                                std::vector<uint8_t>& blob) const {
-    // Get blob size first
-    size_t blobSize = -1;
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                                                                ze_graph_handle_t graphHandle) const {
+    Mallocator<uint8_t> mal;
+    std::vector<uint8_t, Mallocator<uint8_t>> blob(mal);
+    size_t blobSize;
+    
     auto result = _graphDdiTableExt.pfnGetNativeBinary(graphHandle, &blobSize, nullptr);
     blob.resize(blobSize);
 
@@ -442,71 +395,48 @@ void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditabl
                     uint64_t(result),
                     ". ",
                     getLatestBuildError());
+    return std::move(blob);
 }
-
-// Allocators of the same type are always equal
-template <typename T1, typename T2>
-bool operator==(const PreAllocatedAllocator<T1>&, const PreAllocatedAllocator<T2>&) { return true; }
-
-template <typename T1, typename T2>
-bool operator!=(const PreAllocatedAllocator<T1>&, const PreAllocatedAllocator<T2>&) { return false; }
 
 template <typename TableExtension>
 template <typename T, std::enable_if_t<!UseCopyForNativeBinary(T), bool>>
-void LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
-                                                                ze_graph_handle_t graphHandle,
-                                                                std::vector<uint8_t>& blob) const {
-        // Get blob ptr and size
-        uint8_t* blobPtr = nullptr;
-        size_t blobSize = -1;
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getNativeBinary(ze_graph_dditable_ext_curr_t& graphDdiTableExt,
+                                                                ze_graph_handle_t graphHandle) const {
 
-        auto result = _graphDdiTableExt.pfnGetNativeBinary2(graphHandle, &blobSize, &blobPtr);
+    uint8_t* blobPtr;
+    size_t blobSize;
 
-        OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
-                        "Failed to compile network. L0 pfnGetNativeBinary get blob size",
-                        " result: ",
-                        ze_result_to_string(result),
-                        ", code 0x",
-                        std::hex,
-                        uint64_t(result),
-                        ". ",
-                        getLatestBuildError());
+    // Get blob ptr and size
+    auto result = _graphDdiTableExt.pfnGetNativeBinary2(graphHandle, &blobSize, &blobPtr);
 
-        // std::initializer_list<uint8_t> initializerListTmp(blobPtr, blobPtr + blobSize);
+    OPENVINO_ASSERT(result == ZE_RESULT_SUCCESS,
+                    "Failed to compile network. L0 pfnGetNativeBinary get blob size",
+                    " result: ",
+                    ze_result_to_string(result),
+                    ", code 0x",
+                    std::hex,
+                    uint64_t(result),
+                    ". ",
+                    getLatestBuildError());
 
-        // std::vector<uint8_t> blobTmp = {initializerListTmp.begin(), initializerListTmp.end()};
-
-        // blob.swap(blobTmp);
-
-        /*placement_memory_allocator<uint8_t> pl(blobPtr);
-        std::vector<uint8_t, placement_memory_allocator<uint8_t>> tmpBlob(pl);
-        tmpBlob.reserve(blobSize);
-        tmpBlob.push_back(0);*/
-        // blob.swap(tmpBlob);
-
-        PreAllocatedAllocator allocator(blobPtr, blobSize);
-
-        std::vector<uint8_t, PreAllocatedAllocator<uint8_t>> tmpBlob(allocator);
-
-        std::cout << tmpBlob[0] << " " << tmpBlob[1] << std::endl;
+    Mallocator<uint8_t> mal(blobPtr, blobSize);
+    return std::move(std::vector<uint8_t, Mallocator<uint8_t>>(mal));
 }
 
 template <typename TableExtension>
-std::vector<uint8_t> LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
+std::vector<uint8_t, Mallocator<uint8_t>> LevelZeroCompilerInDriver<TableExtension>::getCompiledNetwork(
     const NetworkDescription& networkDescription) {
     if (networkDescription.metadata.graphHandle != nullptr && networkDescription.compiledNetwork.size() == 0) {
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork get blob from graphHandle");
         ze_graph_handle_t graphHandle = static_cast<ze_graph_handle_t>(networkDescription.metadata.graphHandle);
 
-        std::vector<uint8_t> blob;
-
-        getNativeBinary(_graphDdiTableExt, graphHandle, blob);
-
         _logger.info("LevelZeroCompilerInDriver getCompiledNetwork returning blob");
-        return std::move(blob);
+        return getNativeBinary(_graphDdiTableExt, graphHandle);
     }
     _logger.info("return the blob from network description");
-    return networkDescription.compiledNetwork;
+    
+    Mallocator<uint8_t> mal(networkDescription.compiledNetwork.data(), networkDescription.compiledNetwork.size());
+    return std::move(std::vector<uint8_t, Mallocator<uint8_t>>(mal));
 }
 
 template <typename TableExtension>

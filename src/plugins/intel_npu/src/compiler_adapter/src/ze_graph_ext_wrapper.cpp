@@ -145,7 +145,7 @@ void ZeGraphExtWrappers<TableExtension>::setGraphArgumentValue(ze_graph_handle_t
 }
 
 template <ze_graph_ext_version_t TableExtension>
-void ZeGraphExtWrappers<TableExtension>::initializeGraph(ze_graph_handle_t graphHandle, const Config& config) const {
+void ZeGraphExtWrappers<TableExtension>::initializeGraph(ze_graph_handle_t graphHandle, const Config& config, std::optional<std::vector<uint8_t>> /* unusedBlob */) const {
     if (_zeroInitStruct->getGraphDdiTable().version() < ZE_GRAPH_EXT_VERSION_1_8) {
         initialize_graph_through_command_list(graphHandle, config);
     } else {

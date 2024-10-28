@@ -116,7 +116,7 @@ void PluginGraph::initialize(const Config& config) {
         set_workload_type(config.get<WORKLOAD_TYPE>());
     }
 
-    _zeGraphExt->initializeGraph(_handle, config);
+    _zeGraphExt->initializeGraph(_handle, config, std::move(_blob));
 
     _logger.debug("Graph initialize finish");
 }

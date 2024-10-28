@@ -34,7 +34,7 @@ public:
 
     virtual void setGraphArgumentValue(ze_graph_handle_t graphHandle, uint32_t argi_, const void* argv) const = 0;
 
-    virtual void initializeGraph(ze_graph_handle_t graphHandle, const Config& config) const = 0;
+    virtual void initializeGraph(ze_graph_handle_t graphHandle, const Config& config, std::optional<std::vector<uint8_t>> blobOpt) const = 0;
 
     virtual ~ZeGraphExtWrappersInterface() = default;
 };

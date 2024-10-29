@@ -71,7 +71,7 @@ public:
 
     void setGraphArgumentValue(ze_graph_handle_t graphHandle, uint32_t argi_, const void* argv) const override;
 
-    void initializeGraph(ze_graph_handle_t graphHandle, const Config& config, std::optional<std::vector<uint8_t>> /* unusedBlobOpt */) const override;
+    void initializeGraph(ze_graph_handle_t graphHandle, const Config& config) const override;
 
 private:
     template <ze_graph_ext_version_t T = TableExtension, std::enable_if_t<!NotSupportQuery(T), bool> = true>

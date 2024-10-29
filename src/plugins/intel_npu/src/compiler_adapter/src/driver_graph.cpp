@@ -117,7 +117,9 @@ void DriverGraph::initialize(const Config& config) {
         set_workload_type(config.get<WORKLOAD_TYPE>());
     }
 
-    _zeGraphExt->initializeGraph(_handle, config, std::move(_blob));
+    _zeGraphExt->initializeGraph(_handle, config);
+    _blob.clear();
+    _blob.shrink_to_fit();
 
     _logger.debug("Graph initialize finish");
 }

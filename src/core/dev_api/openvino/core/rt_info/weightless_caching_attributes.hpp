@@ -31,6 +31,13 @@ public:
           bin_offset(bin_offset),
           original_dtype(original_dtype) {}
 
+    bool visit_attributes(AttributeVisitor& visitor) override {
+        visitor.on_attribute("original_size", original_size);
+        visitor.on_attribute("bin_offset", bin_offset);
+        visitor.on_attribute("original_dtype", original_dtype);
+        return true;
+    }
+
     bool is_copyable() const override;
 
     size_t original_size;

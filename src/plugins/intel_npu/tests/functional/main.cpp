@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <execinfo.h>
 #include <signal.h>
-#ifdef WIN32
-#    include <process.h>
-#endif
+
 #include <functional_test_utils/summary/op_summary.hpp>
 #include <iostream>
 #include <sstream>
@@ -17,87 +14,19 @@
 #include "npu_test_report.hpp"
 #include "npu_test_tool.hpp"
 
+#ifdef _WIN32
+#    include <dbghelp.h>
+#    include <process.h>
+#    include <windows.h>
+#else
+#    include <execinfo.h>
+#endif
+
 namespace testing {
 namespace internal {
 extern bool g_help_flag;
 }  // namespace internal
 }  // namespace testing
-
-#ifdef _WIN32
-
-#    include <dbghelp.h>
-#    include <windows.h>
-
-// Global variable to hold the process handle
-HANDLE hProcess = GetCurrentProcess();
-
-// Function to initialize the symbol handler
-void initSymbolHandler() {
-    // Initialize the symbols for this process
-    SymInitialize(hProcess, NULL, TRUE);
-}
-
-// Function to print the stack trace
-void printStackTrace(CONTEXT& context) {
-    STACKFRAME64 stackFrame;
-    memset(&stackFrame, 0, sizeof(stackFrame));
-
-#    ifdef _M_IX86
-    stackFrame.AddrPC.Offset = context.Eip;
-    stackFrame.AddrPC.Mode = AddrModeFlat;
-    stackFrame.AddrFrame.Offset = context.Ebp;
-    stackFrame.AddrFrame.Mode = AddrModeFlat;
-    stackFrame.AddrStack.Offset = context.Esp;
-    stackFrame.AddrStack.Mode = AddrModeFlat;
-#    elif _M_X64
-    stackFrame.AddrPC.Offset = context.Rip;
-    stackFrame.AddrPC.Mode = AddrModeFlat;
-    stackFrame.AddrFrame.Offset = context.Rbp;
-    stackFrame.AddrFrame.Mode = AddrModeFlat;
-    stackFrame.AddrStack.Offset = context.Rsp;
-    stackFrame.AddrStack.Mode = AddrModeFlat;
-#    endif
-
-    SYMBOL_INFO* symbol = (SYMBOL_INFO*)malloc(sizeof(SYMBOL_INFO) + 256);
-    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-    symbol->MaxNameLen = 255;
-
-    while (StackWalk64(IMAGE_FILE_MACHINE_AMD64,
-                       hProcess,
-                       GetCurrentThread(),
-                       &stackFrame,
-                       &context,
-                       NULL,
-                       SymFunctionTableAccess64,
-                       SymGetModuleBase64,
-                       NULL)) {
-        if (stackFrame.AddrPC.Offset == 0) {
-            break;
-        }
-
-        // Get the symbol for the current address
-        if (SymFromAddr(hProcess, stackFrame.AddrPC.Offset, 0, symbol)) {
-            std::cerr << symbol->Name << " - " << std::hex << stackFrame.AddrPC.Offset << std::dec << std::endl;
-        }
-    }
-
-    free(symbol);
-}
-
-// Exception handler
-LONG WINAPI exceptionHandler(EXCEPTION_POINTERS* exceptionPointers) {
-    CONTEXT context = *exceptionPointers->ContextRecord;
-
-    // Print the stack trace
-    printStackTrace(context);
-
-    // Exit after printing the stack trace
-    exit(1);
-
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-
-#endif
 
 void sigsegv_handler(int errCode);
 
@@ -106,12 +35,34 @@ void sigsegv_handler(int errCode) {
     s.saveReport();
     std::cerr << "Unexpected application crash with code: " << errCode << std::endl;
 
-#ifdef __linux__
-    void* array[10];
+#ifdef _WIN32
+    unsigned int i;
+    void* stack[100];
+    unsigned short frames;
+    SYMBOL_INFO* symbol;
+    HANDLE process;
+
+    process = GetCurrentProcess();
+
+    SymInitialize(process, NULL, TRUE);
+
+    frames = CaptureStackBackTrace(0, 100, stack, NULL);
+    symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);
+    symbol->MaxNameLen = 255;
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+    for (i = 0; i < frames; i++) {
+        SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);
+        std::cerr << frames - i - 1 << ": " << symbol->Name << std::hex << symbol->Address;
+    }
+
+    free(symbol);
+#elif defined(__linux__)
+    void* array[100];
     size_t size;
 
     // Get the stack trace (up to 10 addresses)
-    size = backtrace(array, 10);
+    size = backtrace(array, 100);
 
     // Print out the stack trace
     backtrace_symbols_fd(array, size, STDERR_FILENO);
@@ -126,14 +77,7 @@ int main(int argc, char** argv, char** envp) {
     signal(SIGABRT, sigsegv_handler);
     signal(SIGSEGV, sigsegv_handler);
     signal(SIGILL, sigsegv_handler);
-
-#ifdef _WIN32
-    // Initialize the symbol handler
-    initSymbolHandler();
-
-    // Set up the exception handler
-    SetUnhandledExceptionFilter(exceptionHandler);
-#elif defined(__linux__)
+#ifdef __linux__
     signal(SIGFPE, sigsegv_handler);
     signal(SIGBUS, sigsegv_handler);
 #endif

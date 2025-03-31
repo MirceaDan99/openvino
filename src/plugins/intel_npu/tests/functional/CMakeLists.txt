@@ -60,6 +60,7 @@ set_target_properties(
 if(MSVC)
   # Enforce standards conformance on MSVC
   target_compile_options(${TARGET_NAME} PRIVATE /Zc:preprocessor)
+  target_link_libraries(${TARGET_NAME} PRIVATE dbghelp.lib)
 endif()
 
 target_compile_definitions(${TARGET_NAME} PRIVATE CI_BUILD_NUMBER=\"mock_version\")

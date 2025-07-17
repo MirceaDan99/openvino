@@ -668,6 +668,7 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
     }
 
     auto npu_plugin_properties = properties;
+    // NPUW properties from npu_plugin_properties will be erased if import_model_npuw returns nullptr
     std::shared_ptr<ov::ICompiledModel> compiledModel =
         import_model_npuw(stream, npu_plugin_properties, shared_from_this());
     if (compiledModel) {
@@ -681,6 +682,8 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, c
         std::unique_ptr<MetadataBase> metadata = nullptr;
         size_t blobSize = MetadataBase::getFileSize(stream);
         if (!skipCompatibility) {
+            // Read only metadata from the stream and check if blob is compatible. Load blob into memory only in case it
+            // passes compatibility checks.
             metadata = read_metadata_from(stream);
             if (!metadata->is_compatible()) {
                 OPENVINO_THROW("Incompatible blob version!");
@@ -716,9 +719,11 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream,
 std::shared_ptr<ov::ICompiledModel> Plugin::import_model(ov::Tensor& tensor, const ov::AnyMap& properties) const {
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::import_model");
 
-    auto npu_plugin_properties = properties;
     ov::SharedStreamBuffer buffer{reinterpret_cast<char*>(tensor.data()), tensor.get_byte_size()};
     std::istream stream{&buffer};
+
+    auto npu_plugin_properties = properties;
+    // NPUW properties from npu_plugin_properties will be erased if import_model_npuw returns nullptr
     std::shared_ptr<ov::ICompiledModel> compiledModel =
         import_model_npuw(stream, npu_plugin_properties, shared_from_this());
     if (compiledModel) {

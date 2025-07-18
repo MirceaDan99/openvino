@@ -84,7 +84,7 @@ private:
      * @param properties Configuration taking the form of an "ov::AnyMap".
      * @return A compiled model
      */
-    std::shared_ptr<ov::ICompiledModel> parse(ov::Tensor& tensorBig,
+    std::shared_ptr<ov::ICompiledModel> parse(const ov::Tensor& tensorBig,
                                               std::unique_ptr<MetadataBase> metadata,
                                               const bool blobAllocatedByPlugin,
                                               const ov::AnyMap& properties) const;

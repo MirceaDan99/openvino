@@ -22,7 +22,7 @@ public:
           const std::shared_ptr<ZeroInitStructsHolder>& zeroInitStruct,
           ze_graph_handle_t graphHandle,
           NetworkMetadata metadata,
-          std::optional<ov::Tensor> blob,
+          std::optional<const ov::Tensor> blob,
           bool blobAllocatedByPlugin,
           const Config& config,
           const ov::SoPtr<ICompiler>& compiler = {nullptr},

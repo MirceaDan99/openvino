@@ -150,10 +150,10 @@ WeightlessGraph::WeightlessGraph(const std::shared_ptr<ZeGraphExtWrappers>& zeGr
                                  const bool blobAllocatedByPlugin,
                                  ze_graph_handle_t mainGraphHandle,
                                  NetworkMetadata mainMetadata,
-                                 std::optional<ov::Tensor> mainBlob,
+                                 std::optional<const ov::Tensor> mainBlob,
                                  const std::vector<ze_graph_handle_t>& initGraphHandles,
                                  std::vector<NetworkMetadata> initMetadata,
-                                 std::optional<std::vector<ov::Tensor>> initBlobs,
+                                 std::optional<std::vector<std::shared_ptr<const ov::Tensor>>> initBlobs,
                                  const std::shared_ptr<const ov::Model>& model,
                                  const Config& config,
                                  const ov::SoPtr<ICompiler>& compiler)
@@ -188,7 +188,8 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::expor
     std::uint32_t totalResult = 1171117u;
     totalResult = ((totalResult << 7) + totalResult);
 
-    const auto writeToStream = [&](ze_graph_handle_t handle, const std::optional<ov::Tensor>& blobTensor) -> uint64_t {
+    const auto writeToStream = [&](ze_graph_handle_t handle,
+                                   const std::optional<const ov::Tensor>& blobTensor) -> uint64_t {
         uint64_t blobSize;
         const uint8_t* blobRawPtr = nullptr;
         std::vector<uint8_t> blob;
@@ -241,8 +242,8 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::expor
     std::vector<uint64_t> initSizes;
     for (size_t initIndex = 0; initIndex < _initsHandles.size(); ++initIndex) {
         uint64_t initBlobSize = writeToStream(_initsHandles.at(initIndex),
-                                              _initBlobs.has_value() && _initBlobs->at(initIndex)
-                                                  ? std::make_optional(_initBlobs->at(initIndex))
+                                              _initBlobs.has_value() && *_initBlobs->at(initIndex)
+                                                  ? std::make_optional(*_initBlobs->at(initIndex))
                                                   : std::nullopt);
         totalBlobSize += initBlobSize;
         initSizes.push_back(initBlobSize);
@@ -583,7 +584,7 @@ void WeightlessGraph::release_init_blob(const size_t initIndex, const Config& co
         return;
     }
 
-    _initBlobs->at(initIndex) = ov::Tensor();
+    _initBlobs->erase(_initBlobs->begin() + initIndex);
     _logger.debug("Blob is released");
 }
 

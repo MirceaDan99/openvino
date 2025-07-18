@@ -214,18 +214,18 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(const std::shared_ptr<o
     }
 
     std::vector<ze_graph_handle_t> initGraphHandles;
-    std::vector<ov::Tensor> tensorsInits;
+    std::vector<std::shared_ptr<const ov::Tensor>> tensorsInits;
     std::vector<NetworkMetadata> initNetworkMetadata;
     initGraphHandles.reserve(initNetworkDescriptions.size());
     tensorsInits.reserve(initNetworkDescriptions.size());
     initNetworkMetadata.reserve(initNetworkDescriptions.size());
     for (auto& networkDesc : initNetworkDescriptions) {
-        ov::Tensor tensor = make_tensor_from_vector(networkDesc->compiledNetwork);
+        auto tensor = std::make_shared<const ov::Tensor>(make_tensor_from_vector(networkDesc->compiledNetwork));
         ze_graph_handle_t graphHandle = nullptr;
         if (_zeGraphExt) {
             try {
-                graphHandle = _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(tensor.data()),
-                                                          tensor.get_byte_size());
+                graphHandle = _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(tensor->data()),
+                                                          tensor->get_byte_size());
             } catch (...) {
             }
         }
@@ -240,20 +240,20 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(const std::shared_ptr<o
                                              /* blobAllocatedByPlugin = */ false,
                                              mainGraphHandle,
                                              std::move(mainNetworkDescription->metadata),
-                                             std::move(tensorMain),
+                                             tensorMain,
                                              initGraphHandles,
                                              std::move(initNetworkMetadata),
-                                             tensorsInits,
+                                             std::move(tensorsInits),
                                              model,
                                              config,
                                              _compiler);
 }
 
 std::shared_ptr<IGraph> PluginCompilerAdapter::parse(
-    ov::Tensor& mainBlob,
+    const ov::Tensor& mainBlob,
     const bool blobAllocatedByPlugin,
     const Config& config,
-    std::optional<std::vector<ov::Tensor>> initBlobs,
+    std::optional<std::vector<std::shared_ptr<const ov::Tensor>>> initBlobs,
     const std::optional<std::shared_ptr<const ov::Model>>& model) const {
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "PluginCompilerAdapter", "parse");
 
@@ -279,7 +279,7 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::parse(
                                        _zeroInitStruct,
                                        graphHandle,
                                        std::move(networkMeta),
-                                       std::move(mainBlob),
+                                       mainBlob,
                                        blobAllocatedByPlugin,
                                        config,
                                        _compiler);
@@ -290,16 +290,16 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::parse(
     std::vector<ze_graph_handle_t> initGraphHandles;
     std::vector<NetworkMetadata> initMetadata;
     for (const auto& initBlob : initBlobs.value()) {
-        network.reserve(initBlob.get_byte_size());
-        network.assign(reinterpret_cast<const uint8_t*>(initBlob.data()),
-                       reinterpret_cast<const uint8_t*>(initBlob.data()) + initBlob.get_byte_size());
+        network.reserve(initBlob->get_byte_size());
+        network.assign(reinterpret_cast<const uint8_t*>(initBlob->data()),
+                       reinterpret_cast<const uint8_t*>(initBlob->data()) + initBlob->get_byte_size());
         initMetadata.push_back(_compiler->parse(network, config));
         network.clear();
         network.shrink_to_fit();
 
         if (_zeGraphExt) {
-            initGraphHandles.push_back(_zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(initBlob.data()),
-                                                                   initBlob.get_byte_size()));
+            initGraphHandles.push_back(_zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(initBlob->data()),
+                                                                   initBlob->get_byte_size()));
         }
     }
 
@@ -309,7 +309,7 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::parse(
                                              blobAllocatedByPlugin,
                                              graphHandle,
                                              std::move(networkMeta),
-                                             std::move(mainBlob),
+                                             mainBlob,
                                              initGraphHandles,
                                              std::move(initMetadata),
                                              std::move(initBlobs),

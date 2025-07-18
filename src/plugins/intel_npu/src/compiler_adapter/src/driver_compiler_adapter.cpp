@@ -359,10 +359,10 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::compileWS(const std::shared_ptr<o
 }
 
 std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
-    ov::Tensor& mainBlob,
+    const ov::Tensor& mainBlob,
     const bool blobAllocatedByPlugin,
     const Config& config,
-    std::optional<std::vector<ov::Tensor>> initBlobs,
+    std::optional<std::vector<std::shared_ptr<const ov::Tensor>>> initBlobs,
     const std::optional<std::shared_ptr<const ov::Model>>& model) const {
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "DriverCompilerAdapter", "parse");
 
@@ -379,7 +379,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
                                        _zeroInitStruct,
                                        graphHandle,
                                        std::move(networkMeta),
-                                       std::move(mainBlob),
+                                       mainBlob,
                                        blobAllocatedByPlugin,
                                        config);
     }
@@ -390,7 +390,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
     std::vector<NetworkMetadata> initMetadata;
     for (const auto& initBlob : initBlobs.value()) {
         ze_graph_handle_t initGraphHandle =
-            _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(initBlob.data()), initBlob.get_byte_size());
+            _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(initBlob->data()), initBlob->get_byte_size());
         initGraphHandles.push_back(initGraphHandle);
         initMetadata.push_back(_zeGraphExt->getNetworkMeta(initGraphHandle));
     }
@@ -400,7 +400,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
                                              blobAllocatedByPlugin,
                                              graphHandle,
                                              std::move(networkMeta),
-                                             std::move(mainBlob),
+                                             mainBlob,
                                              initGraphHandles,
                                              std::move(initMetadata),
                                              std::move(initBlobs),

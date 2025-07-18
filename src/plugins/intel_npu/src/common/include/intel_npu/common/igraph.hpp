@@ -17,7 +17,10 @@ namespace intel_npu {
 
 class IGraph : public std::enable_shared_from_this<IGraph> {
 public:
-    IGraph(ze_graph_handle_t handle, NetworkMetadata metadata, const Config& config, std::optional<ov::Tensor> blob);
+    IGraph(ze_graph_handle_t handle,
+           NetworkMetadata metadata,
+           const Config& config,
+           std::optional<const ov::Tensor> blob);
 
     /**
      * @brief Writes the compiled model along with some metadata to the provided stream. The content of the stream can
@@ -95,7 +98,7 @@ protected:
     // first inference starts running
     std::mutex _mutex;
 
-    std::optional<ov::Tensor> _blob;
+    std::optional<const ov::Tensor> _blob;
 
     uint32_t _unique_id = 0;
     uint32_t _last_submitted_id = 0;

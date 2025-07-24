@@ -14,6 +14,7 @@
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/prefix.hpp"
 #include "intel_npu/utils/logger/logger.hpp"
+#include "intel_npu/utils/utils.hpp"
 #include "intel_npu/utils/zero/zero_api.hpp"
 #include "intel_npu/utils/zero/zero_result.hpp"
 #include "intel_npu/utils/zero/zero_utils.hpp"
@@ -244,10 +245,9 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::compile(const std::shared_ptr<con
 
     return std::make_shared<Graph>(_zeGraphExt,
                                    _zeroInitStruct,
-                                   graphHandle,
+                                   std::make_pair(graphHandle, false),
                                    std::move(networkMeta),
                                    /* blob = */ std::nullopt,
-                                   /* persistentBlob = */ false,
                                    config);
 }
 
@@ -298,7 +298,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::compileWS(const std::shared_ptr<o
     // the current call iteration.
     std::vector<NetworkMetadata> initNetworkMetadata;
     NetworkMetadata mainNetworkMetadata;
-    std::vector<ze_graph_handle_t> initGraphHandles;
+    std::vector<std::pair<ze_graph_handle_t, bool>> initGraphHandles;
     ze_graph_handle_t mainGraphHandle;
     size_t callNumber = 0;
 
@@ -326,7 +326,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::compileWS(const std::shared_ptr<o
         if (isInitMetadata(networkMetadata)) {
             networkMetadata.name = model->get_friendly_name() + "_init";
             initNetworkMetadata.push_back(std::move(networkMetadata));
-            initGraphHandles.push_back(graphHandle);
+            initGraphHandles.push_back({graphHandle, false});
         } else {
             networkMetadata.name = model->get_friendly_name() + "_main";
             mainNetworkMetadata = std::move(networkMetadata);
@@ -347,8 +347,7 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::compileWS(const std::shared_ptr<o
 
     return std::make_shared<WeightlessGraph>(_zeGraphExt,
                                              _zeroInitStruct,
-                                             /* persistentBlob = */ false,
-                                             mainGraphHandle,
+                                             std::make_pair(mainGraphHandle, false),
                                              std::move(mainNetworkMetadata),
                                              /* mainBlob = */ std::nullopt,
                                              initGraphHandles,
@@ -366,14 +365,11 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
     OV_ITT_TASK_CHAIN(PARSE_BLOB, itt::domains::NPUPlugin, "DriverCompilerAdapter", "parse");
 
     _logger.debug("parse start");
-    ze_graph_handle_t graphHandle =
-        _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(mainBlob.data()), mainBlob.get_byte_size());
+    auto graphHandle = _zeGraphExt->getGraphHandle(mainBlob.data(), mainBlob.get_byte_size());
     _logger.debug("parse end");
 
     OV_ITT_TASK_NEXT(PARSE_BLOB, "getNetworkMeta");
-    auto networkMeta = _zeGraphExt->getNetworkMeta(graphHandle);
-
-    const bool persistentBlob = config.get<LOADED_FROM_CACHE>();
+    auto networkMeta = _zeGraphExt->getNetworkMeta(graphHandle.first);
 
     if (!initBlobs.has_value()) {
         return std::make_shared<Graph>(_zeGraphExt,
@@ -381,32 +377,39 @@ std::shared_ptr<IGraph> DriverCompilerAdapter::parse(
                                        graphHandle,
                                        std::move(networkMeta),
                                        std::move(mainBlob),
-                                       persistentBlob,
-                                       config);
+                                       config,
+                                       config.has<LOADED_FROM_CACHE>()
+                                           ? config.get<LOADED_FROM_CACHE>()
+                                           : false);  // exporting the blob when we get it from cache shall be available
     }
 
     // The presence of init schedules means weights separation has been enabled at compilation time. Use a specific
     // "Graph" object as wrapper over all L0 handles.
-    std::vector<ze_graph_handle_t> initGraphHandles;
+    std::vector<std::pair<ze_graph_handle_t, bool>> initGraphHandles;
     std::vector<NetworkMetadata> initMetadata;
+
     for (const auto& initBlob : initBlobs.value()) {
-        ze_graph_handle_t initGraphHandle =
-            _zeGraphExt->getGraphHandle(*reinterpret_cast<const uint8_t*>(initBlob.data()), initBlob.get_byte_size());
-        initGraphHandles.push_back(initGraphHandle);
+        auto [initGraphHandle, initGraphPersistent] =
+            _zeGraphExt->getGraphHandle(initBlob.data(), initBlob.get_byte_size());
+
+        initGraphHandles.push_back({initGraphHandle, initGraphPersistent});
         initMetadata.push_back(_zeGraphExt->getNetworkMeta(initGraphHandle));
     }
 
-    return std::make_shared<WeightlessGraph>(_zeGraphExt,
-                                             _zeroInitStruct,
-                                             persistentBlob,
-                                             graphHandle,
-                                             std::move(networkMeta),
-                                             std::move(mainBlob),
-                                             initGraphHandles,
-                                             std::move(initMetadata),
-                                             std::move(initBlobs),
-                                             model.value(),
-                                             config);
+    return std::make_shared<WeightlessGraph>(
+        _zeGraphExt,
+        _zeroInitStruct,
+
+        graphHandle,
+        std::move(networkMeta),
+        std::move(mainBlob),
+        initGraphHandles,
+        std::move(initMetadata),
+        std::move(initBlobs),
+        model.value(),
+        config,
+        config.has<LOADED_FROM_CACHE>() ? config.get<LOADED_FROM_CACHE>()
+                                        : false);  // exporting the blob when we get it from cache shall be available
 }
 
 ov::SupportedOpsMap DriverCompilerAdapter::query(const std::shared_ptr<const ov::Model>& model,

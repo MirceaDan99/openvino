@@ -23,7 +23,7 @@ constexpr std::string_view VALUE_DELIMITER = "\"";  // marks beginning and end o
 constexpr std::string_view NAME_VALUE_SEPARATOR = ":";
 constexpr std::string_view VALUES_SEPARATOR = " ";
 
-class ZeroGraphTest : public ::testing::TestWithParam<std::tuple<int, std::string>> {
+class ZeroGraphTest : public ::testing::TestWithParam<std::tuple<int, std::string, std::string>> {
 protected:
     void SetUp() override;
 
@@ -44,13 +44,15 @@ public:
 
     std::string extVersion;
 
+    std::string driverDLL;
+
     int graphDescFlag;
 
-    static std::string getTestCaseName(testing::TestParamInfo<std::tuple<int, std::string>> obj) {
+    static std::string getTestCaseName(testing::TestParamInfo<std::tuple<int, std::string, std::string>> obj) {
         int flag;
-        std::string version;
-        std::tie(flag, version) = obj.param;
-        return "graphDescriptorFlag=" + std::to_string(flag) + "_extVersion=" + version;
+        std::string version, driverDLL;
+        std::tie(flag, version, driverDLL) = obj.param;
+        return "graphDescriptorFlag=" + std::to_string(flag) + "_extVersion=" + version + "_driverDLL=" + driverDLL;
     }
 };
 

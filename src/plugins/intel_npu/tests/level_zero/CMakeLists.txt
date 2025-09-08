@@ -18,6 +18,32 @@ set(OPTIONAL_FUNC_TESTS_LIBS "")
 set(SKIP_CONFIG "npu_skip_func_tests.xml")
 set(SKIP_CONFIG_PATH "../functional/shared_tests_instances/${SKIP_CONFIG}")
 
+if (NOT DEFINED ENV{DRIVERS_LIST})
+  message(FATAL_ERROR "Empty drivers list!")
+endif()
+
+include(FetchContent)
+
+set(DRIVERS_LIST $ENV{DRIVERS_LIST})
+set(DRIVER_LIBS "")
+foreach(DRIVER IN LISTS DRIVERS_LIST)
+  string(REGEX MATCH "[0-9]+-[0-9]+" DRIVER_VERSION ${DRIVER})
+  string(REPLACE "-" "_" DRIVER_VERSION ${DRIVER_VERSION})
+  FetchContent_Populate(
+    npu_level_zero_umd_${DRIVER_VERSION}
+    URL        ${DRIVER}
+    HTTP_HEADER $ENV{DRIVERS_TOKEN}
+  )
+  file(GLOB_RECURSE npu_level_zero_umd_file "${npu_level_zero_umd_${DRIVER_VERSION}_SOURCE_DIR}/*npu_level_zero_umd.dll")
+  file(COPY_FILE ${npu_level_zero_umd_file} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/npu_level_zero_umd_${DRIVER_VERSION}.dll)
+  file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/npu_level_zero_umd_${DRIVER_VERSION}-subbuild)
+  file(REMOVE_RECURSE ${npu_level_zero_umd_${DRIVER_VERSION}_SOURCE_DIR})
+  file(REMOVE_RECURSE ${npu_level_zero_umd_${DRIVER_VERSION}_BINARY_DIR})
+  string(APPEND DRIVER_LIBS "\"npu_level_zero_umd_${DRIVER_VERSION}.dll\",")
+endforeach()
+
+configure_file(common/drivers.h.in drivers.h @ONLY)
+
 list(APPEND OPTIONAL_FUNC_TESTS_LIBS openvino_npu_driver_compiler_adapter openvino_npu_level_zero_backend openvino_npu_zero_utils)
 
 ov_add_test_target(
@@ -28,6 +54,7 @@ ov_add_test_target(
   EXCLUDED_SOURCE_PATHS
   ${EXCLUDED_FUNC_TESTS_DIR}
   INCLUDES
+  ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}
   "${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/backend/include"
   ${OPTIONAL_FUNC_TESTS_INCLUDES}

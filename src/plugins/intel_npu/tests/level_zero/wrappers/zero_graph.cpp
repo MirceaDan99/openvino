@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "drivers.h"
 #include "zero_graph.hpp"
 
 #include <stdlib.h>
@@ -18,11 +19,17 @@
 #include "zero_memory.hpp"
 
 void ZeroGraphTest::SetUp() {
-    std::tie(graphDescFlag, extVersion) = GetParam();
+    std::tie(graphDescFlag, extVersion, driverDLL) = GetParam();
 #ifdef _WIN32
     _putenv_s("NPU_ZE_GRAPH_EXT_VERSION", extVersion.c_str());
+    if (driverDLL != "") {
+        _putenv_s("ZE_ENABLE_ALT_DRIVERS", driverDLL.c_str());
+    }
 #else
     setenv("NPU_ZE_GRAPH_EXT_VERSION", extVersion, 1);
+    if (driverDLL != "") {
+        setenv("ZE_ENABLE_ALT_DRIVERS", driverDLL, 1);
+    }
 #endif
 
     model = ov::test::utils::make_multi_single_conv();
@@ -206,7 +213,7 @@ std::vector<std::string> extVersion =
 
 INSTANTIATE_TEST_SUITE_P(something,
                          ZeroGraphTest,
-                         ::testing::Combine(::testing::ValuesIn(graphDescflags), ::testing::ValuesIn(extVersion)),
+                         ::testing::Combine(::testing::ValuesIn(graphDescflags), ::testing::ValuesIn(extVersion), ::testing::ValuesIn(drivers)),
                          ZeroGraphTest::getTestCaseName);
 
 //////////////////////////////////////////////////////////////////////////////////////////

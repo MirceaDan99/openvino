@@ -236,7 +236,7 @@ namespace intel_npu {
     do {                                                                                                     \
         _properties.emplace(                                                                                 \
             PROP_NAME.name(),                                                                                \
-            std::make_tuple(PROP_VISIBILITY, ov::PropertyMutability::RO, [&](const Config& config) -> auto { \
+            std::make_tuple(PROP_VISIBILITY, ov::PropertyMutability::RO, [&]([[maybe_unused]] const Config& config) -> auto { \
                 return PROP_RETVAL;                                                                          \
             }));                                                                                             \
     } while (0)
@@ -552,7 +552,7 @@ void Properties::registerPluginProperties() {
             auto dummyCompiler = compilerAdapterFactory.getCompiler(_backend, config.get<COMPILER_TYPE>());
             return dummyCompiler->get_version();
         });
-        REGISTER_CUSTOM_METRIC(ov::internal::caching_properties, false, [&](const Config& config) {
+        REGISTER_CUSTOM_METRIC(ov::internal::caching_properties, false, [&](const Config& /* unusedConfig */) {
             // return a dynamically created list based on what is supported in current configuration
             std::vector<ov::PropertyName> caching_props{};
             // walk the static caching properties, add only what is supported now

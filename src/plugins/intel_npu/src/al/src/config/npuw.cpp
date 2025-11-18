@@ -194,11 +194,9 @@ ov::Any ov::npuw::s11n::stringToAny(const std::string& var) {
         return ov::Any(ov::npuw::s11n::stringToAnyMap(val));
     } else if (type == AnyType::PERFMODE) {
         HNDL(ov::hint::PerformanceMode)
-    } else {
-        OPENVINO_THROW("Unsupported type of ov::Any to convert from string!");
     }
 #undef HNDL
-    return {};
+    OPENVINO_THROW("Unsupported type of ov::Any to convert from string!");
 }
 
 std::string ov::npuw::s11n::anyMapToString(const ov::AnyMap& var) {

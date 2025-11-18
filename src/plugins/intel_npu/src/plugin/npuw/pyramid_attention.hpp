@@ -197,7 +197,7 @@ class All final : public Selector {
 public:
     explicit All(std::size_t pyramid_count) : m_pyramid_count(pyramid_count) {}
 
-    void prepare(int64_t past_len) override {
+    void prepare(int64_t /* unused_past_len */) override {
         // Always use the largest pyramid model (last one)
         m_pyramid_id = m_pyramid_count > 0 ? m_pyramid_count - 1 : 0;
     }

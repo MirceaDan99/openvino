@@ -132,12 +132,12 @@ void MetadataBase::append_padding_blob_size_and_magic(std::ostream& stream) {
 }
 
 void Metadata<METADATA_VERSION_2_0>::read() {
-    if (const std::reference_wrapper<std::istream>* source =
+    if (const std::reference_wrapper<std::istream>* sourceIStream =
             std::get_if<std::reference_wrapper<std::istream>>(&_source)) {
-        _ovVersion.read(*source);
-    } else if (const std::reference_wrapper<const ov::Tensor>* source =
+        _ovVersion.read(*sourceIStream);
+    } else if (const std::reference_wrapper<const ov::Tensor>* sourceTensor =
                    std::get_if<std::reference_wrapper<const ov::Tensor>>(&_source)) {
-        _ovVersion.read(*source);
+        _ovVersion.read(*sourceTensor);
         _cursorOffset = _ovVersion.get_openvino_version_size();
     } else {
         OPENVINO_THROW("No blob has been provided to NPU plugin's metadata reader.");

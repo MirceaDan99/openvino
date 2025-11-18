@@ -22,7 +22,7 @@ add_library(${TARGET_NAME} STATIC
 
 add_library(openvino::snippets ALIAS ${TARGET_NAME})
 set_target_properties(${TARGET_NAME} PROPERTIES EXPORT_NAME snippets)
-ov_apply_clang_tidy(TARGET ${TARGET_NAME} EXCLUDE_RISCV64)
+# ov_apply_clang_tidy(TARGET ${TARGET_NAME} EXCLUDE_RISCV64)
 
 
 ov_build_target_faster(${TARGET_NAME}

@@ -23,7 +23,7 @@ class TRANSFORMATIONS_API PreprocessingAttribute : public ov::RuntimeAttribute {
 public:
     OPENVINO_RTTI("preprocessing", "0", ov::RuntimeAttribute);
     PreprocessingAttribute() = default;
-    bool visit_attributes(AttributeVisitor& visitor) override {
+    bool visit_attributes(AttributeVisitor& /* unused_visitor */) override {
         return true;
     };
 };

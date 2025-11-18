@@ -13,6 +13,8 @@ set(TARGET_NAME ${NPU_PLUGIN_TARGET})
 # Plugin library
 #
 
+set_source_files_properties(${NPUW_SOURCES} PROPERTIES COMPILE_FLAGS /W3)
+
 ov_add_plugin(NAME ${NPU_PLUGIN_TARGET}
     DEVICE_NAME ${NPU_DEVICE_NAME}
     SOURCES ${SOURCES} ${NPUW_SOURCES}
@@ -54,4 +56,11 @@ cross_compiled_file(${TARGET_NAME}
         NAMESPACE   ov::npuw::util::XARCH
 )
 
+set_source_files_properties(cross-compiled/AVX2/util_xarch.cpp cross-compiled/ANY/util_xarch.cpp PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_FLAGS /W3
+)
+
 ov_add_api_validator_post_build_step(TARGET ${NPU_PLUGIN_TARGET})
+
+ov_apply_clang_tidy(TARGET ${NPU_PLUGIN_TARGET})

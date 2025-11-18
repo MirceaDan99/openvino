@@ -26,7 +26,7 @@ private:
         return c;
     }
 
-    virtual std::streamsize xsputn(const char* s, std::streamsize n) override {
+    virtual std::streamsize xsputn(const char* /* unusedS */, std::streamsize n) override {
         m_size += n;
         return n;
     }
@@ -57,7 +57,7 @@ public:
 
 private:
     int overflow(int c) override {
-        return *writeIt++ = c;
+        return *writeIt++ = *reinterpret_cast<OutputIt>(&c);
     }
 
     std::streamsize xsputn(const char* s, std::streamsize n) override {
@@ -75,7 +75,7 @@ private:
         }
     }
 
-    pos_type seekpos(pos_type pos, std::ios_base::openmode which) override {
+    pos_type seekpos(pos_type pos, std::ios_base::openmode /* unusedWhich */) override {
         writeIt = startIt + pos;
         return pos;
     }

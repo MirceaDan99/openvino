@@ -289,7 +289,7 @@ public:
         const uint64_t xmlSize = static_cast<uint64_t>(_xmlSize);
         const uint64_t weightsSize = static_cast<uint64_t>(_weightsSize);
 
-        OPENVINO_ASSERT(numberOfInputData < maxNumberOfElements);
+        static_assert(numberOfInputData < maxNumberOfElements);
         if (xmlSize >= maxSizeOfXML) {
             OPENVINO_THROW("Xml file is too big to process. xmlSize: ", xmlSize, " >= maxSizeOfXML: ", maxSizeOfXML);
         }
@@ -668,7 +668,7 @@ std::string serializeConfig(const Config& config,
         // From 4.0.0, driver compiler start to use VPU_ prefix, the old version uses VPUX_ prefix
         if (compilerVersion.major < 4) {
             // Replace VPU_ with VPUX_ for old driver compiler
-            std::regex reg("VPU_");
+            reg = std::regex("VPU_");
             content = std::regex_replace(content, reg, "VPUX_");
         }
     }

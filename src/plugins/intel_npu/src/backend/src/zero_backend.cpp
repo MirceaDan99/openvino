@@ -112,8 +112,6 @@ const std::shared_ptr<IDevice> ZeroEngineBackend::getDevice(const std::string& n
         // if we got here, it means there is no device with that arch number
         OPENVINO_THROW("Could not find available NPU device with specified arch or index: NPU.", name);
     }
-    // if we got here without returning already, it means we did not find a device with requested name/index/arch
-    OPENVINO_THROW("Could not find requested NPU device: NPU.", name);
 }
 
 const std::vector<std::string> ZeroEngineBackend::getDeviceNames() const {

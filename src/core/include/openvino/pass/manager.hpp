@@ -52,8 +52,10 @@ public:
         if (m_per_pass_validation) {
             push_pass<Validate>();
         }
-        if (!Enable && !m_pass_config->is_enabled<T>()) {
-            m_pass_config->disable<T>();
+        if constexpr (!Enable) {
+            if (m_pass_config->is_enabled<T>()) {
+                m_pass_config->disable<T>();
+            }
         }
         return rc;
     }

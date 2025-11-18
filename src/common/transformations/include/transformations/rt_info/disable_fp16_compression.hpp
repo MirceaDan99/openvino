@@ -34,7 +34,7 @@ public:
 
     DisableFP16Compression() = default;
 
-    bool visit_attributes(AttributeVisitor& visitor) override {
+    bool visit_attributes(AttributeVisitor& /* unused_visitor */) override {
         return true;
     }
 

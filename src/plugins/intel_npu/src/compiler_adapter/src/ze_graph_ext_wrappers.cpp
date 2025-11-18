@@ -524,7 +524,7 @@ std::string ZeGraphExtWrappers::getCompilerSupportedOptions() const {
             // 2. allocate buffer for it
             std::vector<char> sup_options_chr(str_size);
             // 3. ask driver to populate char list
-            auto result =
+            result =
                 _zeroInitStruct->getGraphDdiTable().pfnCompilerGetSupportedOptions(_zeroInitStruct->getDevice(),
                                                                                    ZE_NPU_COMPILER_OPTIONS,
                                                                                    &str_size,

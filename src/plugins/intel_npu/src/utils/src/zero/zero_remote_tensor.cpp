@@ -11,15 +11,14 @@
 #include "openvino/core/memory_util.hpp"
 #include "openvino/runtime/tensor.hpp"
 
-using namespace ov::intel_npu;
 namespace intel_npu {
 
 ZeroRemoteTensor::ZeroRemoteTensor(const std::shared_ptr<ov::IRemoteContext>& context,
                                    const std::shared_ptr<ZeroInitStructsHolder>& init_structs,
                                    const ov::element::Type& element_type,
                                    const ov::Shape& shape,
-                                   TensorType tensor_type,
-                                   MemType mem_type,
+                                   ov::intel_npu::TensorType tensor_type,
+                                   ov::intel_npu::MemType mem_type,
                                    const void* mem,
                                    const std::optional<ov::intel_npu::FileDescriptor>& file_descriptor)
     : _context(context),
@@ -99,7 +98,7 @@ std::shared_ptr<ov::IRemoteContext> ZeroRemoteTensor::get_context() const {
 
 void ZeroRemoteTensor::copy_file_data_to_level_zero_memory(const size_t size_to_read) {
     if (!_file_descriptor.has_value()) {
-        OPENVINO_THROW("No parameter ", file_descriptor.name(), " found in parameters map");
+        OPENVINO_THROW("No parameter ", ov::intel_npu::file_descriptor.name(), " found in parameters map");
     }
 
     OPENVINO_ASSERT(
@@ -133,7 +132,7 @@ void ZeroRemoteTensor::copy_file_data_to_level_zero_memory(const size_t size_to_
     _host_memory = ZeroMemPool::get_instance().allocate_zero_memory(_init_structs,
                                                                     size_to_read,
                                                                     utils::STANDARD_PAGE_SIZE,
-                                                                    _tensor_type == TensorType::INPUT ? true : false);
+                                                                    _tensor_type == ov::intel_npu::TensorType::INPUT ? true : false);
     _data = _host_memory->data();
 
     std::streamoff bytes_to_read = static_cast<std::streamoff>(size_to_read);
@@ -147,26 +146,26 @@ void ZeroRemoteTensor::copy_file_data_to_level_zero_memory(const size_t size_to_
 
 void ZeroRemoteTensor::allocate(const size_t bytes) {
     switch (_mem_type) {
-    case MemType::L0_INTERNAL_BUF: {
+    case ov::intel_npu::MemType::L0_INTERNAL_BUF: {
         _host_memory =
             ZeroMemPool::get_instance().allocate_zero_memory(_init_structs,
                                                              bytes,
                                                              utils::STANDARD_PAGE_SIZE,
-                                                             _tensor_type == TensorType::INPUT ? true : false);
+                                                             _tensor_type == ov::intel_npu::TensorType::INPUT ? true : false);
         _data = _host_memory->data();
         break;
     }
-    case MemType::SHARED_BUF: {
+    case ov::intel_npu::MemType::SHARED_BUF: {
         // set up the request to import the external memory handle
         _host_memory = ZeroMemPool::get_instance().import_shared_memory(_init_structs, _mem, bytes);
         _data = _host_memory->data();
         break;
     }
-    case MemType::MMAPED_FILE: {
+    case ov::intel_npu::MemType::MMAPED_FILE: {
         // File_descriptor shall be set if mem_type is a mmaped file type.
         OPENVINO_ASSERT(_file_descriptor.has_value(),
                         "No parameter ",
-                        file_descriptor.name(),
+                        ov::intel_npu::file_descriptor.name(),
                         " found in parameters map");
 
         if (!_init_structs->isExternalMemoryStandardAllocationSupported()) {
@@ -176,12 +175,12 @@ void ZeroRemoteTensor::allocate(const size_t bytes) {
             break;
         }
 
-        if (_tensor_type == TensorType::OUTPUT) {
+        if (_tensor_type == ov::intel_npu::TensorType::OUTPUT) {
             // It is impossible to work on output today since ov::read_tensor_data opens the file in read-only mode.
             OPENVINO_THROW("Importing memory from a memory-mapped file is supported only for input tensors");
-        } else if (_tensor_type == TensorType::BINDED) {
+        } else if (_tensor_type == ov::intel_npu::TensorType::BINDED) {
             _logger.warning("Importing memory from a memory-mapped file is supported only for input tensors");
-            _tensor_type = TensorType::INPUT;
+            _tensor_type = ov::intel_npu::TensorType::INPUT;
         }
 
         _mmap_tensor = ov::read_tensor_data(_file_descriptor.value()._file_path,
@@ -196,7 +195,7 @@ void ZeroRemoteTensor::allocate(const size_t bytes) {
                 _init_structs,
                 _mmap_tensor.data(),
                 aligned_size,
-                _tensor_type == TensorType::INPUT ? true : false);
+                _tensor_type == ov::intel_npu::TensorType::INPUT ? true : false);
             _data = _host_memory->data();
         } catch (const ZeroMemException&) {
             _logger.info("Failed to import mmaped memory. File data will be copied to the level zero memory");
@@ -221,13 +220,13 @@ void ZeroRemoteTensor::update_properties() {
     OPENVINO_ASSERT(is_allocated(), "Can't initialize ZeroRemoteTensor parameters as memory was not allocated");
 
     switch (_mem_type) {
-    case MemType::L0_INTERNAL_BUF:
-    case MemType::MMAPED_FILE:
-        _properties = {mem_type(_mem_type), mem_handle(_data), tensor_type(_tensor_type)};
+    case ov::intel_npu::MemType::L0_INTERNAL_BUF:
+    case ov::intel_npu::MemType::MMAPED_FILE:
+        _properties = {ov::intel_npu::mem_type(_mem_type), ov::intel_npu::mem_handle(_data), ov::intel_npu::tensor_type(_tensor_type)};
 
         break;
-    case MemType::SHARED_BUF:
-        _properties = {mem_type(_mem_type), mem_handle(_data)};
+    case ov::intel_npu::MemType::SHARED_BUF:
+        _properties = {ov::intel_npu::mem_type(_mem_type), ov::intel_npu::mem_handle(_data)};
 
         break;
     default:

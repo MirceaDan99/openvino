@@ -113,7 +113,7 @@ void ZeroInitStructsHolder::initNpuDriver() {
         ze_init_driver_type_desc_t desc = {};
         desc.stype = ZE_STRUCTURE_TYPE_INIT_DRIVER_TYPE_DESC;
         desc.flags = ZE_INIT_DRIVER_TYPE_FLAG_NPU;
-        auto result = zeInitDrivers(&drivers_count, nullptr, &desc);
+        result = zeInitDrivers(&drivers_count, nullptr, &desc);
         if (result != ZE_RESULT_SUCCESS) {
             fallbackToZeDriverGet();
             return;

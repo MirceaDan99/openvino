@@ -32,3 +32,5 @@ target_link_libraries(${TARGET_NAME}
 # targets install
 #
 ov_install_static_lib(${TARGET_NAME} ${NPU_INTERNAL_COMPONENT})
+
+ov_apply_clang_tidy(TARGET ${TARGET_NAME})

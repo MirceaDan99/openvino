@@ -27,7 +27,7 @@ constexpr uint8_t MAIN_SCHEDULE_INDEX = 0;
 
 std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> get_all_constants_in_topological_order(
     const std::shared_ptr<const ov::Model>& model,
-    const Logger& logger) {
+    const Logger& /* unusedLogger */) {
     std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> constants;
 
     // Match the inputs of the "init" model with the Constant nodes of the original model
@@ -191,7 +191,7 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::expor
     std::uint32_t totalResult = 1171117u;
     totalResult = ((totalResult << 7) + totalResult);
 
-    const auto writeToStream = [&](GraphDescriptor _graphDesc,
+    const auto writeToStream = [&](GraphDescriptor graphDesc,
                                    const std::optional<ov::Tensor>& blobTensor) -> uint64_t {
         uint64_t blobSize;
         const uint8_t* blobRawPtr = nullptr;
@@ -199,7 +199,7 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::expor
 
         if (blobTensor == std::nullopt) {
             // when compiling the model using Compiler in Driver, the blob is handled by the driver
-            _zeGraphExt->getGraphBinary(_graphDesc, blob, blobRawPtr, blobSize);
+            _zeGraphExt->getGraphBinary(graphDesc, blob, blobRawPtr, blobSize);
         } else {
             // in all other cases, the blob is handled by the plugin
             blobRawPtr = static_cast<const uint8_t*>(blobTensor->data());

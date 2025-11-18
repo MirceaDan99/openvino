@@ -60,6 +60,7 @@ if(WIN32)
     endif()
 endif()
 
+add_dependencies(${TARGET_NAME} openvino_intel_npu_plugin)
 
 set_target_properties(
   ${TARGET_NAME} PROPERTIES FOLDER ${CMAKE_CURRENT_SOURCE_DIR} CXX_STANDARD 17)
@@ -70,6 +71,8 @@ if(MSVC)
 endif()
 
 target_compile_definitions(${TARGET_NAME} PRIVATE CI_BUILD_NUMBER=\"mock_version\")
+
+ov_apply_clang_tidy(TARGET ${TARGET_NAME})
 
 file(GLOB_RECURSE BLOBS "*.blob")
 file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/intel_npu_blobs)

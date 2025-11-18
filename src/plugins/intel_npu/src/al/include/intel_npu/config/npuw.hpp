@@ -188,7 +188,6 @@ struct NPUW_LLM_PREFILL_HINT final : OptionBase<NPUW_LLM_PREFILL_HINT, ::intel_n
             return ::intel_npu::npuw::llm::PrefillHint::STATIC;
         }
         OPENVINO_THROW("Unsupported \"PREFILL_HINT\" provided: ", val);
-        return {};
     }
 
     static std::string toString(const ::intel_npu::npuw::llm::PrefillHint& val) {
@@ -197,10 +196,8 @@ struct NPUW_LLM_PREFILL_HINT final : OptionBase<NPUW_LLM_PREFILL_HINT, ::intel_n
             return "DYNAMIC";
         case ::intel_npu::npuw::llm::PrefillHint::STATIC:
             return "STATIC";
-        default:
-            OPENVINO_THROW("Can't convert provided \"PREFILL_HINT\" : ", int(val), " to string.");
         }
-        return {};
+        OPENVINO_THROW("Can't convert provided \"PREFILL_HINT\" : ", int(val), " to string.");
     }
 
     static OptionMode mode() {
@@ -230,7 +227,6 @@ struct ATTN_HINT_BASE : OptionBase<ATTN_HINT_BASE, ::intel_npu::npuw::llm::Atten
             return ::intel_npu::npuw::llm::AttentionHint::PYRAMID;
         }
         OPENVINO_THROW("Unsupported attention hint provided: ", val);
-        return {};
     }
 
     static std::string toString(const ::intel_npu::npuw::llm::AttentionHint& val) {
@@ -241,10 +237,8 @@ struct ATTN_HINT_BASE : OptionBase<ATTN_HINT_BASE, ::intel_npu::npuw::llm::Atten
             return "STATIC";
         case ::intel_npu::npuw::llm::AttentionHint::PYRAMID:
             return "PYRAMID";
-        default:
-            OPENVINO_THROW("Can't convert provided attention hint : ", int(val), " to string.");
         }
-        return {};
+        OPENVINO_THROW("Can't convert provided attention hint : ", int(val), " to string.");
     }
 
     static OptionMode mode() {

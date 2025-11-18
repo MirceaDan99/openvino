@@ -160,7 +160,7 @@ protected:
 
 // No dynamic dispatch - just run over the whole range
 class All final : public Selector {
-    void prepare(int64_t past_len) override {}
+    void prepare(int64_t /* unused_past_len */) override {}
     int64_t length() const override {
         return -1;
     }

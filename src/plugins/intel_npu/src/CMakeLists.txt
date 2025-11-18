@@ -5,6 +5,8 @@
 # Close LTO temporarily for add_symbol_to_partition_1 issue
 set(ENABLE_LTO OFF)
 
+ov_add_compiler_flags(/W4)
+
 add_subdirectory(utils)
 
 add_subdirectory(al)

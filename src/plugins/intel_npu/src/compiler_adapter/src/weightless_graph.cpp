@@ -27,7 +27,7 @@ constexpr uint8_t MAIN_SCHEDULE_INDEX = 0;
 
 std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> get_all_constants_in_topological_order(
     const std::shared_ptr<const ov::Model>& model,
-    const Logger& logger) {
+    const Logger& /* unusedLogger */) {
     std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> constants;
 
     // Match the inputs of the "init" model with the Constant nodes of the original model
@@ -181,25 +181,74 @@ WeightlessGraph::WeightlessGraph(const std::shared_ptr<ZeGraphExtWrappers>& zeGr
     initialize(config);
 }
 
-std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::export_blob(std::ostream& stream) const {
+std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::get_blob_size() {
     if (_blobIsReleased) {
-        OPENVINO_THROW("Model was optimized away. Try importing it using `ov::hint::compiled_blob` property to extend "
-                       "its lifetime.");
+        OPENVINO_THROW("Model was imported and released after initialization. Model export is not allowed anymore.");
     }
 
     size_t blobIndex = 0;
     std::uint32_t totalResult = 1171117u;
     totalResult = ((totalResult << 7) + totalResult);
 
-    const auto writeToStream = [&](GraphDescriptor _graphDesc,
-                                   const std::optional<ov::Tensor>& blobTensor) -> uint64_t {
-        uint64_t blobSize;
+    const auto calculateBlobSize = [&](GraphDescriptor graphDesc,
+                                       const std::optional<ov::Tensor>& blobTensor) -> uint64_t {
+        uint64_t blobSize = 0;
         const uint8_t* blobRawPtr = nullptr;
         std::vector<uint8_t> blob;
 
         if (blobTensor == std::nullopt) {
             // when compiling the model using Compiler in Driver, the blob is handled by the driver
-            _zeGraphExt->getGraphBinary(_graphDesc, blob, blobRawPtr, blobSize);
+            _zeGraphExt->getGraphBinary(graphDesc, blob, nullptr, blobSize);
+        } else {
+            // in all other cases, the blob is handled by the plugin
+            blobRawPtr = static_cast<const uint8_t*>(blobTensor->data());
+            blobSize = blobTensor->get_byte_size();
+        }
+
+        if (blobIndex == MAIN_SCHEDULE_INDEX) {
+            _blobSize = blobSize;
+        }
+
+        return utils::align_size_to_standard_page_size(blobSize);
+    };
+
+    // By convention, first write the main part
+    uint64_t mainBlobSize = calculateBlobSize(_graphDesc, _blob);
+    uint64_t totalBlobSize = mainBlobSize;
+    ++blobIndex;
+
+    // Then the init schedules
+    std::vector<uint64_t> initSizes;
+    for (size_t initIndex = 0; initIndex < _initsGraphDesc.size(); ++initIndex) {
+        uint64_t initBlobSize = calculateBlobSize(_initsGraphDesc.at(initIndex)._handle,
+                                                  _initBlobs.has_value() && _initBlobs->at(initIndex)
+                                                      ? std::make_optional(_initBlobs->at(initIndex))
+                                                      : std::nullopt);
+        totalBlobSize += initBlobSize;
+        initSizes.push_back(initBlobSize);
+        ++blobIndex;
+    }
+
+    return std::make_pair(totalBlobSize, initSizes);
+}
+
+void WeightlessGraph::export_blob(std::ostream& stream) const {
+    if (_blobIsReleased) {
+        OPENVINO_THROW("Model was imported and released after initialization. Model export is not allowed anymore.");
+    }
+
+    size_t blobIndex = 0;
+    std::uint32_t totalResult = 1171117u;
+    totalResult = ((totalResult << 7) + totalResult);
+
+    const auto writeToStream = [&](GraphDescriptor graphDesc, const std::optional<ov::Tensor>& blobTensor) -> uint64_t {
+        uint64_t blobSize = blobIndex == MAIN_SCHEDULE_INDEX ? _blobSize : 0;
+        const uint8_t* blobRawPtr = nullptr;
+        std::vector<uint8_t> blob;
+
+        if (blobTensor == std::nullopt) {
+            // when compiling the model using Compiler in Driver, the blob is handled by the driver
+            _zeGraphExt->getGraphBinary(graphDesc, blob, &blobRawPtr, blobSize);
         } else {
             // in all other cases, the blob is handled by the plugin
             blobRawPtr = static_cast<const uint8_t*>(blobTensor->data());
@@ -271,7 +320,7 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> WeightlessGraph::expor
     _wgLogger.info(str.str().c_str());
 
     _wgLogger.info("Write blob to stream successfully.");
-    return std::make_pair(totalBlobSize, initSizes);
+    return;
 }
 
 void WeightlessGraph::initialize(const Config& config) {

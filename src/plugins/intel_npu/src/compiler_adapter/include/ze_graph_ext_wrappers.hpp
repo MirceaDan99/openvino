@@ -49,8 +49,8 @@ public:
     bool isTurboOptionSupported(const ze_graph_compiler_version_info_t& compilerVersion) const;
 
     void getGraphBinary(const GraphDescriptor& graphDescriptor,
-                        std::vector<uint8_t>& blob,
-                        const uint8_t*& blobPtr,
+                        const std::optional<std::vector<uint8_t>>& blob,
+                        const uint8_t** blobPtr,
                         size_t& blobSize) const;
 
     void setGraphArgumentValue(const GraphDescriptor& graphDescriptor, uint32_t argi_, const void* argv) const;

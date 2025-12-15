@@ -82,31 +82,47 @@ ze_graph_handle_t Graph::get_handle() const {
     return _graphDesc._handle;
 }
 
-std::pair<uint64_t, std::optional<std::vector<uint64_t>>> Graph::export_blob(std::ostream& stream) const {
-    const uint8_t* blobPtr = nullptr;
-    size_t blobSize;
-    std::vector<uint8_t> blobVec;  // plugin needs to keep a copy of the blob for older drivers
-
+std::pair<uint64_t, std::optional<std::vector<uint64_t>>> Graph::get_blob_size() {
     if (_blobIsReleased) {
         OPENVINO_THROW("Model was imported and released after initialization. Model export is not allowed anymore.");
     }
 
     if (_blob ==
         std::nullopt) {  // when compiling the model using Compiler in Driver, the blob is handled by the driver
-        _zeGraphExt->getGraphBinary(_graphDesc, blobVec, blobPtr, blobSize);
+        _zeGraphExt->getGraphBinary(_graphDesc, std::nullopt, nullptr, _blobSize);
     } else {  // in all other cases, the blob is handled by the plugin
-        blobPtr = static_cast<const uint8_t*>(_blob->data());
-        blobSize = _blob->get_byte_size();
+        _blobSize = _blob->get_byte_size();
+    }
+
+    return std::make_pair(utils::align_size_to_standard_page_size(_blobSize), std::nullopt);
+}
+
+void Graph::export_blob(std::ostream& stream) const {
+    size_t blobSize = _blobSize;
+    const uint8_t* blobPtr = nullptr;
+    std::vector<uint8_t> blobVec;  // plugin needs to keep a copy of the blob for older drivers
+
+    if (_blobIsReleased) {
+        OPENVINO_THROW("Model was imported and released after initialization. Model export is not allowed anymore.");
     }
 
     if (blobSize > static_cast<decltype(blobSize)>(std::numeric_limits<std::streamsize>::max())) {
         OPENVINO_THROW("Blob size is too large to be represented on a std::streamsize!");
     }
+
+    if (_blob ==
+        std::nullopt) {  // when compiling the model using Compiler in Driver, the blob is handled by the driver
+        _zeGraphExt->getGraphBinary(_graphDesc, blobVec, &blobPtr, blobSize);
+    } else {  // in all other cases, the blob is handled by the plugin
+        blobPtr = static_cast<const uint8_t*>(_blob->data());
+        blobSize = _blob->get_byte_size();
+    }
+
     stream.write(reinterpret_cast<const char*>(blobPtr), static_cast<std::streamsize>(blobSize));
 
     if (!stream) {
         _logger.error("Write blob to stream failed. Blob is broken!");
-        return std::make_pair(0, std::nullopt);
+        return;
     }
 
     if (_logger.level() >= ov::log::Level::INFO) {
@@ -127,14 +143,14 @@ std::pair<uint64_t, std::optional<std::vector<uint64_t>>> Graph::export_blob(std
 
         if (!stream) {
             _logger.error("Write padding to stream failed. Blob is broken!");
-            return std::make_pair(0, std::nullopt);
+            return;
         }
 
         _logger.info("Blob size with padding: %ld", size);
     }
 
     _logger.info("Write blob to stream successfully.");
-    return std::make_pair(size, std::nullopt);
+    return;
 }
 
 std::vector<ov::ProfilingInfo> Graph::process_profiling_output(const std::vector<uint8_t>& profData,

@@ -157,8 +157,8 @@ void ZeGraphExtWrappers::destroyGraph(GraphDescriptor& graphDescriptor) {
 }
 
 void ZeGraphExtWrappers::getGraphBinary(const GraphDescriptor& graphDescriptor,
-                                        std::vector<uint8_t>& blob,
-                                        const uint8_t*& blobPtr,
+                                        const std::optional<std::vector<uint8_t>>& blob,
+                                        const uint8_t** blobPtr,
                                         size_t& blobSize) const {
     if (graphDescriptor._handle == nullptr) {
         OPENVINO_THROW("Graph handle is null");
@@ -167,29 +167,35 @@ void ZeGraphExtWrappers::getGraphBinary(const GraphDescriptor& graphDescriptor,
     _logger.debug("getGraphBinary - get blob from graphHandle");
 
     if (UseCopyForNativeBinary(_graphExtVersion)) {
-        // Get blob size first
-        _logger.debug("getGraphBinary - perform pfnGetNativeBinary to get size");
-        auto result =
-            _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary(graphDescriptor._handle, &blobSize, nullptr);
-        blob.resize(blobSize);
-        THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetNativeBinary get blob size, Failed to compile network.",
-                                        result,
-                                        _zeroInitStruct->getGraphDdiTable());
+        if (blobSize == 0) {
+            // Get blob size first
+            _logger.debug("getGraphBinary - perform pfnGetNativeBinary to get size");
+            auto result =
+                _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary(graphDescriptor._handle, &blobSize, nullptr);
+            THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetNativeBinary get blob size, Failed to compile network.",
+                                            result,
+                                            _zeroInitStruct->getGraphDdiTable());
+        }
+        if (blob != std::nullopt) {
+            auto* blobVecPtr = const_cast<std::remove_reference_t<decltype((blob))>::value_type*>(&blob.value());
+            blobVecPtr->resize(blobSize);
 
-        // Get blob data
-        _logger.debug("getGraphBinary - perform pfnGetNativeBinary to get data");
-        result =
-            _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary(graphDescriptor._handle, &blobSize, blob.data());
-        THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetNativeBinary get blob data, Failed to compile network.",
-                                        result,
-                                        _zeroInitStruct->getGraphDdiTable());
+            // Get blob data
+            _logger.debug("getGraphBinary - perform pfnGetNativeBinary to get data");
+            auto result = _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary(graphDescriptor._handle,
+                                                                                 &blobSize,
+                                                                                 blobVecPtr->data());
+            THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetNativeBinary get blob data, Failed to compile network.",
+                                            result,
+                                            _zeroInitStruct->getGraphDdiTable());
 
-        blobPtr = blob.data();
+            *blobPtr = blobVecPtr->data();
+        }
     } else {
         // Get blob ptr and size
         _logger.debug("getGraphBinary - perform pfnGetNativeBinary2 to get size and data");
         auto result =
-            _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary2(graphDescriptor._handle, &blobSize, &blobPtr);
+            _zeroInitStruct->getGraphDdiTable().pfnGetNativeBinary2(graphDescriptor._handle, &blobSize, blobPtr);
         THROW_ON_FAIL_FOR_LEVELZERO_EXT("pfnGetNativeBinary get blob size, Failed to compile network.",
                                         result,
                                         _zeroInitStruct->getGraphDdiTable());
@@ -524,11 +530,10 @@ std::string ZeGraphExtWrappers::getCompilerSupportedOptions() const {
             // 2. allocate buffer for it
             std::vector<char> sup_options_chr(str_size);
             // 3. ask driver to populate char list
-            auto result =
-                _zeroInitStruct->getGraphDdiTable().pfnCompilerGetSupportedOptions(_zeroInitStruct->getDevice(),
-                                                                                   ZE_NPU_COMPILER_OPTIONS,
-                                                                                   &str_size,
-                                                                                   sup_options_chr.data());
+            result = _zeroInitStruct->getGraphDdiTable().pfnCompilerGetSupportedOptions(_zeroInitStruct->getDevice(),
+                                                                                        ZE_NPU_COMPILER_OPTIONS,
+                                                                                        &str_size,
+                                                                                        sup_options_chr.data());
             if (result == ZE_RESULT_SUCCESS) {
                 // convert received buff to string
                 std::string supported_options_list_str(sup_options_chr.data());

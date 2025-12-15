@@ -21,6 +21,16 @@ public:
     IGraph() = default;
 
     /**
+     * @brief Returns the size of the compiled blob along its metadata in bytes.
+     * If compiled model is weightless, second pair element of the return will contain each size of the init schedule, otherwise
+     * it will be nullopt
+     *
+     * @return Size of the main blob size in bytes and nullopt or size of the main blob in bytes and each size of init schedule in bytes.
+     */
+
+    virtual std::pair<uint64_t, std::optional<std::vector<uint64_t>>> get_blob_size() = 0;
+
+    /**
      * @brief Writes the compiled model along with some metadata to the provided stream. The content of the stream can
      * later be used for importing the model.
      *
@@ -28,7 +38,8 @@ public:
      * @return A pair made of the size of the main binary object and an optional variable. The optional variable
      * constitues the size of each init binary object if weights separation is enabled.
      */
-    virtual std::pair<uint64_t, std::optional<std::vector<uint64_t>>> export_blob(std::ostream& stream) const = 0;
+
+    virtual void export_blob(std::ostream& stream) const = 0;
 
     virtual std::vector<ov::ProfilingInfo> process_profiling_output(const std::vector<uint8_t>& profData,
                                                                     const Config& config) const = 0;
@@ -73,6 +84,7 @@ protected:
     // first inference starts running
     std::mutex _mutex;
     bool _init_completed = false;
+    uint64_t _blobSize = 0;
 };
 
 }  // namespace intel_npu

@@ -18,25 +18,31 @@
 
 namespace intel_npu {
 
+using uninitialized_source = void*;
+using Source =
+    std::variant<uninitialized_source, std::reference_wrapper<std::istream>, std::reference_wrapper<const ov::Tensor>>;
+
 class MetadataBase {
+    class HelperStreambuf : std::streambuf {
+    public:
+        HelperStreambuf(const std::streambuf& other) {
+            *this = other;
+        }
+        const char* data() {
+            return gptr();
+        }
+
+        size_t get_byte_size() {
+            return egptr() - gptr();
+        }
+    };
+
 public:
     MetadataBase(uint32_t version, uint64_t blobDataSize);
 
-    using uninitialized_source = void*;
-    using Source = std::
-        variant<uninitialized_source, std::reference_wrapper<std::istream>, std::reference_wrapper<const ov::Tensor>>;
+    void read(const Source& source);
 
-    /**
-     * @brief Reads metadata from a stream.
-     */
-    void read(std::istream& tensor);
-
-    /**
-     * @brief Reads metadata from a ov::Tensor.
-     */
-    void read(const ov::Tensor& tensor);
-
-    virtual void read() = 0;
+    virtual void read(const char* address, const size_t length) = 0;
 
     /**
      * @brief Writes metadata to a stream.
@@ -119,7 +125,6 @@ protected:
      * @details Stored as attribute in order to avoid repeatedly passing the same arguments to some methods.
      * "uninitialized_source" (void*) is the default type assigned upon creation.
      */
-    Source _source;
 
     /**
      * @brief Used only when the source buffer is an OV tensor for managing the read coursor.
@@ -139,6 +144,7 @@ constexpr uint32_t METADATA_VERSION_2_0{MetadataBase::make_version(2, 0)};
 constexpr uint32_t METADATA_VERSION_2_1{MetadataBase::make_version(2, 1)};
 constexpr uint32_t METADATA_VERSION_2_2{MetadataBase::make_version(2, 2)};
 constexpr uint32_t METADATA_VERSION_2_3{MetadataBase::make_version(2, 3)};
+constexpr uint32_t METADATA_VERSION_3_0{MetadataBase::make_version(3, 0)};
 
 /**
  * @brief Current metadata version.
@@ -170,14 +176,9 @@ public:
     ~OpenvinoVersion() = default;
 
     /**
-     * @brief Reads version data from a stream.
+     * @brief Reads version data from either an std::istream or a ov::Tensor.
      */
-    void read(std::istream& istream);
-
-    /**
-     * @brief Reads version data from a ov::Tensor.
-     */
-    void read(const ov::Tensor& tensor);
+    void read(const char* address, const size_t length);
 
     /**
      * @brief Writes version data to a stream.
@@ -218,7 +219,7 @@ class Metadata<METADATA_VERSION_2_0> : public MetadataBase {
 public:
     Metadata(uint64_t blobSize, const std::optional<OpenvinoVersion>& ovVersion = std::nullopt);
 
-    void read() override;
+    void read(const char* address, const size_t length) override;
 
     /**
      * @attention It's a must to first write metadata version in any metadata specialization.
@@ -264,7 +265,7 @@ public:
      * @details The number of init schedules, along with the size of each init binary object are read in addition to the
      * information provided by the previous metadata versions.
      */
-    void read() override;
+    void read(const char* address, const size_t length) override;
 
     /**
      * @details The number of init schedules, along with the size of each init binary object are written in addition to
@@ -292,7 +293,7 @@ public:
              const std::optional<std::vector<uint64_t>> initSizes = std::nullopt,
              const std::optional<int64_t> batchSize = std::nullopt);
 
-    void read() override;
+    void read(const char* address, const size_t length) override;
 
     void write(std::ostream& stream) override;
 
@@ -318,7 +319,7 @@ public:
              const std::optional<std::vector<ov::Layout>>& inputLayouts = std::nullopt,
              const std::optional<std::vector<ov::Layout>>& outputLayouts = std::nullopt);
 
-    void read() override;
+    void read(const char* address, const size_t length) override;
 
     void write(std::ostream& stream) override;
 
@@ -356,5 +357,303 @@ std::unique_ptr<MetadataBase> read_metadata_from(std::istream& stream);
  * MetadataBase object; otherwise, returns 'nullptr'.
  */
 std::unique_ptr<MetadataBase> read_metadata_from(const ov::Tensor& tensor);
+
+/**
+ * @brief Changes logic of fixed metadata sections to dynamic approach
+ * Sections will no longer need to respect certain order and they will be parsed by their header containing type and
+ * length In order to make a certain section mandatory, it needs to satisfy expression section
+ */
+template <>
+class Metadata<METADATA_VERSION_3_0> : MetadataBase {
+public:
+    struct Section {
+        enum class ESectionType : uint16_t {
+            E_NPU_SECTION_EXPR = 0,
+            E_NPU_WEIGHTLESS_BLOB,
+            E_NPU_BATCH_SIZE,
+            E_NPU_IO_LAYOUTS,
+        };
+
+        struct SectionHeader {
+            uint16_t _type;
+            uint16_t _length;
+        };
+
+        class ISectionBody {
+        public:
+            virtual uint16_t get_type() const = 0;
+            virtual uint16_t get_byte_size() const = 0;
+            virtual void parse_section(const char* addr) = 0;
+            virtual void write_section(std::ostream& ostream) const = 0;
+        };
+
+        /* #define REGISTER_SECTION(SECTION_NAME)                      \
+            class SECTION_NAME : ISectionBody {                      \
+            public:                                                 \
+                uint16_t get_type() override {                      \
+                    return static_cast<uint16_t>(ESectionType::E_##SECTION_NAME);          \
+                }                                                   \
+                uint16_t get_byte_size() override;                  \
+                void parse_section(const char* addr) override;   \
+                void write_section(std::ostream& ostream) const override; \
+            }
+
+            REGISTER_SECTION(NPU_SECTION_EXPR);
+            REGISTER_SECTION(NPU_WEIGHTLESS_BLOB);
+            REGISTER_SECTION(NPU_BATCH_SIZE);
+            REGISTER_SECTION(NPU_IO_LAYOUTS);
+
+        #undef REGISTER_SECTION */
+
+        class NPU_SECTION_EXPR : public ISectionBody {
+            enum class EOperators : uint32_t {
+                E_AND = std::numeric_limits<uint16_t>::max() + 1,  // 65536
+                E_OR,
+                E_PARENTHESES,
+                E_NOT_FOUND
+            };
+
+        public:
+            uint16_t get_type() const override {
+                return static_cast<uint16_t>(ESectionType::E_NPU_SECTION_EXPR);
+            }
+
+            uint16_t get_byte_size() const override {
+                return sizeof(uint64_t) + _expression.size() * sizeof(decltype(_expression)::value_type);
+            }
+
+            void parse_section(const char* addr) override {
+                uint64_t expressionSize = *reinterpret_cast<const uint64_t*>(addr);
+                _expression.resize(expressionSize);
+                std::memcpy(static_cast<void*>(_expression.data()),
+                            addr + sizeof(expressionSize),
+                            expressionSize * sizeof(decltype(_expression)::value_type));
+            }
+
+            void write_section(std::ostream& ostream) const override {
+                uint64_t expressionSize = _expression.size();
+                ostream.write(reinterpret_cast<const char*>(&expressionSize), sizeof(expressionSize));
+                ostream.write(reinterpret_cast<const char*>(_expression.data()),
+                              _expression.size() * sizeof(decltype(_expression)::value_type));
+            }
+
+            bool evaluate(const std::vector<Section>& supportedSections) const {
+                /* TO DO */
+                auto currentOperator = parse_operator(*_expression.cbegin());
+                OPENVINO_ASSERT(currentOperator != EOperators::E_NOT_FOUND,
+                                "Expression should start with an operator!");
+                for (auto it = std::next(_expression.cbegin(), 1); it != _expression.cend(); it++) {
+                    auto operatorCheck = parse_operator(*it);
+                    if (operatorCheck != EOperators::E_NOT_FOUND) {
+                        currentOperator = operatorCheck;
+                    } else if (currentOperator == EOperators::E_AND && std::find_if(supportedSections.cbegin(),
+                                                                                    supportedSections.cend(),
+                                                                                    [&it](const Section& section) {
+                                                                                        if (*it == section.get_type()) {
+                                                                                            return true;
+                                                                                        }
+                                                                                        return false;
+                                                                                    }) == supportedSections.cend()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+        private:
+            EOperators parse_operator(const uint32_t val) const {
+                switch (val) {
+                case static_cast<uint32_t>(EOperators::E_AND):
+                    return EOperators::E_AND;
+                case static_cast<uint32_t>(EOperators::E_OR):
+                    return EOperators::E_OR;
+                case static_cast<uint32_t>(EOperators::E_PARENTHESES):
+                    return EOperators::E_PARENTHESES;
+                default:
+                    return EOperators::E_NOT_FOUND;
+                }
+                OPENVINO_THROW("Unreacheable code reached!");
+            }
+            std::vector<uint32_t> _expression;
+        };
+
+        class NPU_WEIGHTLESS_BLOB : public ISectionBody {
+        public:
+            uint16_t get_type() const override {
+                return static_cast<uint16_t>(ESectionType::E_NPU_WEIGHTLESS_BLOB);
+            }
+
+            uint16_t get_byte_size() const override {
+                return sizeof(uint64_t) + _initSizes.size() * sizeof(decltype(_initSizes)::value_type);
+            }
+
+            void parse_section(const char* addr) override {
+                uint64_t numberOfInits = *reinterpret_cast<const uint64_t*>(addr);
+                _initSizes.resize(numberOfInits);
+                std::memcpy(static_cast<void*>(_initSizes.data()),
+                            addr + sizeof(numberOfInits),
+                            numberOfInits * sizeof(uint32_t));
+            }
+
+            void write_section(std::ostream& ostream) const override {
+                uint64_t numberOfInits = _initSizes.size();
+                ostream.write(reinterpret_cast<const char*>(&numberOfInits), sizeof(numberOfInits));
+                ostream.write(reinterpret_cast<const char*>(_initSizes.data()),
+                              _initSizes.size() * sizeof(decltype(_initSizes)::value_type));
+            }
+
+        private:
+            std::vector<uint64_t> _initSizes;
+        };
+
+        class NPU_BATCH_SIZE : public ISectionBody {
+        public:
+            uint16_t get_type() const override {
+                return static_cast<uint16_t>(ESectionType::E_NPU_BATCH_SIZE);
+            }
+
+            uint16_t get_byte_size() const override {
+                return sizeof(_batchSize);
+            }
+
+            void parse_section(const char* addr) override {
+                _batchSize = *reinterpret_cast<const int64_t*>(addr);
+            }
+
+            void write_section(std::ostream& ostream) const override {
+                ostream.write(reinterpret_cast<const char*>(_batchSize), sizeof(_batchSize));
+            }
+
+        private:
+            int64_t _batchSize;
+        };
+
+        class NPU_IO_LAYOUTS : public ISectionBody {
+        public:
+            uint16_t get_type() const override {
+                return static_cast<uint16_t>(ESectionType::E_NPU_IO_LAYOUTS);
+            }
+
+            uint16_t get_byte_size() const override {
+                uint64_t totalSize = 2 * sizeof(uint64_t);
+                for (const auto& inputLayout : _inputLayouts) {
+                    const std::string layoutString = inputLayout.to_string();
+                    const uint16_t stringLength = static_cast<uint16_t>(layoutString.size());
+                    totalSize += sizeof(uint16_t) + stringLength;
+                }
+
+                for (const auto& outputLayout : _outputLayouts) {
+                    const std::string layoutString = outputLayout.to_string();
+                    const uint16_t stringLength = static_cast<uint16_t>(layoutString.size());
+                    totalSize += sizeof(uint16_t) + stringLength;
+                }
+                return totalSize;
+            }
+
+            void parse_section(const char* addr) override {
+                const uint64_t numberOfInputLayouts = *reinterpret_cast<const uint64_t*>(addr);
+                uint64_t offset = sizeof(numberOfInputLayouts);
+                const uint64_t numberOfOutputLayouts = *reinterpret_cast<const uint64_t*>(addr + offset);
+                offset += sizeof(numberOfInputLayouts);
+                for (uint64_t i = 0; i < numberOfInputLayouts; ++i) {
+                    const uint16_t stringlength = *reinterpret_cast<const uint16_t*>(addr + offset);
+                    offset += sizeof(stringlength);
+                    _inputLayouts.push_back(ov::Layout(std::string(addr + offset, stringlength)));
+                    offset += stringlength;
+                }
+                for (uint64_t i = 0; i < numberOfOutputLayouts; ++i) {
+                    const uint16_t stringlength = *reinterpret_cast<const uint16_t*>(addr + offset);
+                    offset += sizeof(stringlength);
+                    _outputLayouts.push_back(ov::Layout(std::string(addr + offset, stringlength)));
+                    offset += stringlength;
+                }
+            }
+
+            void write_section(std::ostream& ostream) const override {
+                const uint64_t numberOfInputLayouts = _inputLayouts.size();
+                const uint64_t numberOfOutputLayouts = _outputLayouts.size();
+                ostream.write(reinterpret_cast<const char*>(&numberOfInputLayouts), sizeof(numberOfInputLayouts));
+                ostream.write(reinterpret_cast<const char*>(&numberOfOutputLayouts), sizeof(numberOfOutputLayouts));
+                for (const auto& intputLayout : _inputLayouts) {
+                    auto layoutStr = intputLayout.to_string();
+                    const uint16_t layoutStrSize = layoutStr.size();
+                    ostream.write(reinterpret_cast<const char*>(&layoutStrSize), sizeof(layoutStrSize));
+                    ostream.write(layoutStr.data(), layoutStr.size());
+                }
+                for (const auto& intputLayout : _outputLayouts) {
+                    auto layoutStr = intputLayout.to_string();
+                    const uint16_t layoutStrSize = layoutStr.size();
+                    ostream.write(reinterpret_cast<const char*>(&layoutStrSize), sizeof(layoutStrSize));
+                    ostream.write(layoutStr.data(), layoutStr.size());
+                }
+            }
+
+        private:
+            std::vector<ov::Layout> _inputLayouts;
+            std::vector<ov::Layout> _outputLayouts;
+        };
+
+        Section(const char* address, size_t& offset) {
+            _sHead = *reinterpret_cast<const SectionHeader*>(address);
+            offset += sizeof(SectionHeader);
+            _sBodyOffset = address + offset;
+            offset += _sHead._length;
+            _sBodyPtr = nullptr;
+        }
+
+        Section(const std::shared_ptr<ISectionBody>& ISectionBody) {
+            _sHead._type = ISectionBody->get_type();
+            _sHead._length = ISectionBody->get_byte_size();
+            _sBodyPtr = ISectionBody;
+        }
+
+        size_t get_type() const {
+            return _sHead._type;
+        }
+
+        size_t get_length() const {
+            return sizeof(SectionHeader) + _sHead._length;
+        }
+
+        void write_section(std::ostream& stream) const {
+            stream.write(reinterpret_cast<const char*>(&_sHead), sizeof(SectionHeader));
+            _sBodyPtr->write_section(stream);
+        }
+
+        SectionHeader _sHead;
+        std::shared_ptr<ISectionBody> _sBodyPtr = nullptr;
+        const char* _sBodyOffset = nullptr;
+    };
+
+    void read(const char* address, const size_t length) override {
+        parse_sections(address, length);
+    }
+
+    void write(std::ostream& stream) override {
+        write_sections(stream);
+    }
+
+private:
+    void append_section(const std::shared_ptr<Section::ISectionBody>& ISectionBody) {
+        _sections.push_back(Section(ISectionBody));
+    }
+
+    void parse_sections(const char* address, const size_t length) {
+        size_t offset = 0;
+        do {
+            auto section = Section(address, offset);
+            _sections.push_back(section);
+            offset += section.get_length();
+        } while (offset < length);
+    }
+
+    void write_sections(std::ostream& ostream) const {
+        for (const auto& section : _sections) {
+            section.write_section(ostream);
+        }
+    }
+
+    std::vector<Section> _sections;
+};
 
 }  // namespace intel_npu

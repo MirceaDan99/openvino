@@ -35,16 +35,13 @@ OpenvinoVersion::OpenvinoVersion(const OpenvinoVersion& version)
       _minor(version.get_minor()),
       _patch(version.get_patch()) {}
 
-void OpenvinoVersion::read(std::istream& stream) {
-    stream.read(reinterpret_cast<char*>(&_major), sizeof(_major));
-    stream.read(reinterpret_cast<char*>(&_minor), sizeof(_minor));
-    stream.read(reinterpret_cast<char*>(&_patch), sizeof(_patch));
-}
-
-void OpenvinoVersion::read(const ov::Tensor& tensor) {
-    _major = *reinterpret_cast<const decltype(_major)*>(tensor.data<const char>());
-    _minor = *reinterpret_cast<const decltype(_minor)*>(tensor.data<const char>() + sizeof(_major));
-    _patch = *reinterpret_cast<const decltype(_patch)*>(tensor.data<const char>() + sizeof(_major) + sizeof(_minor));
+void OpenvinoVersion::read(const char* address, const size_t length) {
+    OPENVINO_ASSERT(sizeof(_major) + sizeof(_minor) + sizeof(_patch) < length,
+                    "Needed size for reading metadata section exceeds maximum stream length of ",
+                    length);
+    _major = *reinterpret_cast<const decltype(_major)*>(address);
+    _minor = *reinterpret_cast<const decltype(_minor)*>(address + sizeof(_major));
+    _patch = *reinterpret_cast<const decltype(_patch)*>(address + sizeof(_major) + sizeof(_minor));
 }
 
 void OpenvinoVersion::write(std::ostream& stream) {
@@ -60,8 +57,7 @@ size_t OpenvinoVersion::get_openvino_version_size() const {
 MetadataBase::MetadataBase(uint32_t version, uint64_t blobDataSize)
     : _version(version),
       _blobDataSize(blobDataSize),
-      _logger("NPUBlobMetadata", Logger::global().level()),
-      _source() {}
+      _logger("NPUBlobMetadata", Logger::global().level()) {}
 
 Metadata<METADATA_VERSION_2_0>::Metadata(uint64_t blobSize, const std::optional<OpenvinoVersion>& ovVersion)
     : MetadataBase{METADATA_VERSION_2_0, blobSize},
@@ -96,27 +92,21 @@ Metadata<METADATA_VERSION_2_3>::Metadata(uint64_t blobSize,
     _version = METADATA_VERSION_2_3;
 }
 
-void MetadataBase::read(std::istream& tensor) {
-    _source = Source(tensor);
-    read();
-}
+void MetadataBase::read(const Source& source) {
+    const char* address = nullptr;
+    size_t length = 0;
 
-void MetadataBase::read(const ov::Tensor& tensor) {
-    _source = Source(tensor);
-    read();
-}
-
-void MetadataBase::read_data_from_source(char* destination, const size_t size) {
-    if (const std::reference_wrapper<std::istream>* stream =
-            std::get_if<std::reference_wrapper<std::istream>>(&_source)) {
-        stream->get().read(destination, size);
-    } else if (const std::reference_wrapper<const ov::Tensor>* tensor =
-                   std::get_if<std::reference_wrapper<const ov::Tensor>>(&_source)) {
-        std::memcpy(destination, tensor->get().data<const char>() + _cursorOffset, size);
-        _cursorOffset += size;
+    if (auto* streamSource = std::get_if<std::reference_wrapper<std::istream>>(&source)) {
+        auto helperStreambuf = HelperStreambuf(*streamSource->get().rdbuf());
+        address = helperStreambuf.data();
+        length = helperStreambuf.get_byte_size();
+    } else if (auto* streamTensor = std::get_if<std::reference_wrapper<const ov::Tensor>>(&source)) {
+        address = streamTensor->get().data<const char>();
+        length = streamTensor->get().get_byte_size();
     } else {
         OPENVINO_THROW("No blob has been provided to NPU plugin's metadata reader.");
     }
+    read(address, length);
 }
 
 void MetadataBase::append_padding_blob_size_and_magic(std::ostream& stream) {
@@ -131,49 +121,44 @@ void MetadataBase::append_padding_blob_size_and_magic(std::ostream& stream) {
     stream.write(MAGIC_BYTES.data(), MAGIC_BYTES.size());
 }
 
-void Metadata<METADATA_VERSION_2_0>::read() {
-    if (const std::reference_wrapper<std::istream>* source =
-            std::get_if<std::reference_wrapper<std::istream>>(&_source)) {
-        _ovVersion.read(*source);
-    } else if (const std::reference_wrapper<const ov::Tensor>* source =
-                   std::get_if<std::reference_wrapper<const ov::Tensor>>(&_source)) {
-        _ovVersion.read(*source);
-        _cursorOffset = _ovVersion.get_openvino_version_size();
-    } else {
-        OPENVINO_THROW("No blob has been provided to NPU plugin's metadata reader.");
-    }
+void Metadata<METADATA_VERSION_2_0>::read(const char* address, const size_t length) {
+    _ovVersion.read(address, length);
 }
 
-void Metadata<METADATA_VERSION_2_1>::read() {
-    Metadata<METADATA_VERSION_2_0>::read();
+void Metadata<METADATA_VERSION_2_1>::read(const char* address, const size_t length) {
+    Metadata<METADATA_VERSION_2_0>::read(address, length);
 
     uint64_t numberOfInits;
-    read_data_from_source(reinterpret_cast<char*>(&numberOfInits), sizeof(numberOfInits));
+    OPENVINO_ASSERT(sizeof(numberOfInits) < length, "Not enough elements in stream to read metadata section!");
+    numberOfInits = *reinterpret_cast<const decltype(numberOfInits)*>(address);
 
     if (numberOfInits) {
+        OPENVINO_ASSERT(numberOfInits < length, "Not enough elements in stream to read metadata section!");
         _initSizes = std::vector<uint64_t>(numberOfInits);
         for (uint64_t initIndex = 0; initIndex < numberOfInits; ++initIndex) {
-            read_data_from_source(reinterpret_cast<char*>(&_initSizes->at(initIndex)),
-                                  sizeof(_initSizes->at(initIndex)));
+            _initSizes->at(initIndex) = *reinterpret_cast<const decltype(_initSizes)::value_type::value_type*>(
+                address + sizeof(numberOfInits) + sizeof(decltype(_initSizes)::value_type::value_type) * initIndex);
         }
     }
 }
 
-void Metadata<METADATA_VERSION_2_2>::read() {
-    Metadata<METADATA_VERSION_2_1>::read();
+void Metadata<METADATA_VERSION_2_2>::read(const char* address, const size_t length) {
+    Metadata<METADATA_VERSION_2_1>::read(address, length);
 
     int64_t batchSize;
-    read_data_from_source(reinterpret_cast<char*>(&batchSize), sizeof(batchSize));
-
+    OPENVINO_ASSERT(sizeof(batchSize) < length, "Not enough elements in stream to read metadata section!");
+    batchSize = *reinterpret_cast<const decltype(batchSize)*>(address);
     _batchSize = batchSize != 0 ? std::optional(batchSize) : std::nullopt;
 }
 
-void Metadata<METADATA_VERSION_2_3>::read() {
-    Metadata<METADATA_VERSION_2_2>::read();
+void Metadata<METADATA_VERSION_2_3>::read(const char* address, const size_t length) {
+    Metadata<METADATA_VERSION_2_2>::read(address, length);
 
     uint64_t numberOfInputLayouts, numberOfOutputLayouts;
-    read_data_from_source(reinterpret_cast<char*>(&numberOfInputLayouts), sizeof(numberOfInputLayouts));
-    read_data_from_source(reinterpret_cast<char*>(&numberOfOutputLayouts), sizeof(numberOfOutputLayouts));
+    OPENVINO_ASSERT(sizeof(numberOfInputLayouts) + sizeof(numberOfOutputLayouts) < length, "Not enough elements in stream to read metadata section!");
+    numberOfInputLayouts = *reinterpret_cast<const decltype(numberOfInputLayouts)*>(address);
+    numberOfOutputLayouts = *reinterpret_cast<const decltype(numberOfOutputLayouts)*>(address + sizeof(numberOfInputLayouts));
+    uint64_t offset = sizeof(numberOfInputLayouts) + sizeof(numberOfOutputLayouts);
 
     const auto readNLayouts = [&](const uint64_t numberOfLayouts, const char* loggerAddition) {
         std::optional<std::vector<ov::Layout>> layouts = std::nullopt;
@@ -185,10 +170,11 @@ void Metadata<METADATA_VERSION_2_3>::read() {
         layouts = std::vector<ov::Layout>();
         layouts->reserve(numberOfLayouts);
         for (uint64_t layoutIndex = 0; layoutIndex < numberOfLayouts; ++layoutIndex) {
-            read_data_from_source(reinterpret_cast<char*>(&stringLength), sizeof(stringLength));
+            stringLength = *reinterpret_cast<const decltype(stringLength)*>(address + offset);
+            offset += sizeof(stringLength);
 
-            std::string layoutString(stringLength, 0);
-            read_data_from_source(const_cast<char*>(layoutString.c_str()), stringLength);
+            std::string layoutString(address + offset, stringLength);
+            offset += stringLength;
 
             try {
                 layouts->push_back(ov::Layout(std::move(layoutString)));

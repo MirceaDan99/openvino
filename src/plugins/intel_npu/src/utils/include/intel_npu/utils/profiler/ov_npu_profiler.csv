@@ -1,0 +1,8 @@
+Function,Times called,Time per call (ms),Total time (ms)
+intel_npu::Logger::clone,30608,0.000002,0.052000
+intel_npu::Logger::global,32363,0.000000,0.011000
+intel_npu::Pipeline::update_graph_arguments,29000,0.000351,10.184000
+intel_npu::SyncInferRequest::check_tensor,59058,0.000064,3.754000
+intel_npu::SyncInferRequest::find_port,29029,0.000017,0.501000
+intel_npu::ZeroInferRequest::set_tensor,29029,0.003906,113.381000
+intel_npu::ZeroTensor::ZeroTensor,29029,0.000393,11.402000

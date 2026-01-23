@@ -15,6 +15,8 @@
 #include "openvino/runtime/make_tensor.hpp"
 #include "zero_variable_state.hpp"
 
+#include "intel_npu/utils/profiler/function_measurement.hpp"
+
 using namespace intel_npu;
 
 namespace {
@@ -262,6 +264,7 @@ void ZeroInferRequest::create_pipeline() {
 }
 
 void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const ov::SoPtr<ov::ITensor>& tensor) {
+    OV_NPU_PROFILE_FUNCTION();
     OV_ITT_TASK_CHAIN(ZERO_SET_TENSOR, itt::domains::LevelZeroBackend, "set_tensor", "set_tensor");
 
     auto foundPort = find_port(port);
@@ -271,6 +274,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                      tensor,
                      foundPort.is_input() ? _metadata.inputs.at(foundPort.idx).supportsStridedLayout
                                           : _metadata.outputs.at(foundPort.idx).supportsStridedLayout);
+        // return; /* Total time: 37.309 ms, Avg time:   0.037 ms, set_tensor/infer ratio: 4.508% */
     } catch (const ov::Exception& ex) {
         OPENVINO_THROW("Failed to set tensor. ", ex.what());
     }
@@ -281,10 +285,13 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             _logger.debug("ZeroInferRequest::set_tensor - got the same tensor, do nothing");
             return;
         }
+        // return; /* Total time: 46.543 ms, Avg time:   0.047 ms, set_tensor/infer ratio: 5.450% */
 
         auto ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
+        // return; /* Total time: 45.347 ms, Avg time:   0.045 ms, set_tensor/infer ratio: 5.335% */
         auto batchSizeCandidate =
             determine_dynamic_batch_size(_metadata.inputs.at(foundPort.idx), ioShape, tensor._ptr, std::nullopt);
+        // return; /* Total time: 46.058 ms, Avg time:   0.046 ms, set_tensor/infer ratio: 5.314% */
 
         if (batchSizeCandidate.has_value()) {
             if (!_dynamicBatchValueChanged) {
@@ -305,6 +312,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                 OPENVINO_THROW("Batching size is not matching all the tensors.");
             }
         }
+        // return; /* Total time: 56.661 ms, Avg time:   0.057 ms, set_tensor/infer ratio: 6.456% */
 
         if (is_batched_input(foundPort.idx)) {
             // Reset vector size to 1 if set_tensor is called after set_tensors
@@ -315,8 +323,11 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             get_user_inputs(foundPort.idx).shrink_to_fit();
             get_user_input(foundPort.idx) = {};
         }
+        // return; /* Total time: 59.085 ms, Avg time:   0.059 ms, set_tensor/infer ratio: 6.901% */
 
         get_user_input(foundPort.idx) = tensor;
+
+        // return; /* Total time: 55.195 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 1.495% */
     } else {
         if (_userOutputTensors.at(foundPort.idx)._ptr == tensor._ptr) {
             // set_tensor called with the same tensor object; no action needed
@@ -349,6 +360,8 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
 
         _userOutputTensors.at(foundPort.idx) = tensor;
     }
+
+    // return; /* Total time: 55.195 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 1.495% */
 
     if (_initStructs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0)) {
         auto& levelZeroTensor =
@@ -395,6 +408,9 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                                               levelZeroTensor);
         }
     }
+
+    // return; /* Total time: 161.998 ms ms, Avg time:   0.055 ms, set_tensor/infer ratio: 18.372% */
+
     // If command list updates are not supported, fallback to copying tensors every time.
 }
 

@@ -70,8 +70,6 @@ void* get_tensor_data_ptr(const std::shared_ptr<ov::ITensor>& tensor) {
     } else {
         return tensor->data();
     }
-
-    return nullptr;
 }
 
 }  // namespace
@@ -384,8 +382,10 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             OV_ITT_TASK_NEXT(ZERO_SET_TENSOR, "create zero tensor");
             // Try to use the user tensor directly if its underlying data is already allocated in the same Level Zero
             // context.
+            // return; /* Total time: 59.416 ms, Avg time:   0.059 ms, set_tensor/infer ratio: 1.616% */
             levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, _config, tensor);
             // return; /* Total time: 109.284 ms, Avg time:   0.109 ms, set_tensor/infer ratio: 12.869% */
+            // return; /* Total time: 77.685 ms, Avg time:   0.078 ms, set_tensor/infer ratio: 9.696% */
             updateCommandListArg = true;
         } catch (const ZeroMemException& exception) {
             _logger.debug("ZeroInferRequest::set_tensor - exception caught while trying to create a Level Zero tensor "

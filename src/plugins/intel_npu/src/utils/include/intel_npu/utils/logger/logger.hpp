@@ -100,7 +100,7 @@ private:
     }
 
 private:
-    std::string _name;
+    std::string_view _name;
     ov::log::Level _logLevel = ov::log::Level::NO;
 };
 

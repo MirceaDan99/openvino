@@ -14,7 +14,7 @@
 
 #include "openvino/util/file_util.hpp"
 
-#define OV_NPU_ENABLE_PROFILER 1
+#define OV_NPU_ENABLE_PROFILER 0
 #if OV_NPU_ENABLE_PROFILER
 constexpr std::string_view output_file_path = "ov_npu_profiler.csv";
 

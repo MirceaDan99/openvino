@@ -267,8 +267,16 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
     OV_NPU_PROFILE_FUNCTION();
     OV_ITT_TASK_CHAIN(ZERO_SET_TENSOR, itt::domains::LevelZeroBackend, "set_tensor", "set_tensor");
 
+    // return; /* Total time: 18.589 ms, Avg time:   0.019 ms, set_tensor/infer ratio: 2.171% */
+
     auto foundPort = find_port(port);
+
+    // return; /* Total time: 34.635 ms, Avg time:   0.035 ms, set_tensor/infer ratio: 3.882% */
+
     OPENVINO_ASSERT(foundPort.found(), "Cannot find tensor for port ", port);
+
+    // return; /* Total time: 35.859 ms, Avg time:   0.036 ms, set_tensor/infer ratio: 4.058% */
+
     try {
         check_tensor(port,
                      tensor,
@@ -367,6 +375,8 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
         auto& levelZeroTensor =
             foundPort.is_input() ? get_level_zero_input(foundPort.idx) : _levelZeroOutputTensors.at(foundPort.idx);
 
+        // return; /* Total time: 50.315 ms, Avg time:   0.050 ms, set_tensor/infer ratio: 1.321% */
+
         bool updateCommandListArg = false;
 
         try {
@@ -375,6 +385,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             // Try to use the user tensor directly if its underlying data is already allocated in the same Level Zero
             // context.
             levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, _config, tensor);
+            // return; /* Total time: 109.284 ms, Avg time:   0.109 ms, set_tensor/infer ratio: 12.869% */
             updateCommandListArg = true;
         } catch (const ZeroMemException& exception) {
             _logger.debug("ZeroInferRequest::set_tensor - exception caught while trying to create a Level Zero tensor "
@@ -396,6 +407,8 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             }
         }
 
+        // return; /* Total time: 94.987 ms, Avg time:   0.095 ms, set_tensor/infer ratio: 18.372% */
+
         if (_pipelineIsCreated && updateCommandListArg && !_dynamicBatchValueChanged) {
             _logger.debug("ZeroInferRequest::infer_async - update command list");
 
@@ -409,7 +422,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
         }
     }
 
-    // return; /* Total time: 161.998 ms ms, Avg time:   0.055 ms, set_tensor/infer ratio: 18.372% */
+    // return; /* Total time: 161.998 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 18.372% */
 
     // If command list updates are not supported, fallback to copying tensors every time.
 }

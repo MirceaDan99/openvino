@@ -60,7 +60,7 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
 ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_structs,
                        const Config& config,
                        const ov::SoPtr<ov::ITensor>& user_tensor)
-    : _init_structs(init_structs),
+     : _init_structs(init_structs),
       _logger("ZeroTensor", config.get<LOG_LEVEL>()),
       _user_tensor(user_tensor),
       _element_type{_user_tensor->get_element_type()},
@@ -94,7 +94,28 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
     // _mem_ref will keep a reference to that allocation. Otherwise the function will try to import it into the level
     // zero context.
     _logger.debug("ZeroTensor::ZeroTensor - get tensor from pool or import it");
+    auto checkpoint_end_zero_tensor_ctor_without_import_mem = std::chrono::high_resolution_clock::now();
     _mem_ref = ZeroMemPool::get_instance().import_standard_allocation_memory(_init_structs, _ptr, _bytes_capacity);
+    auto checkpoint_import_standard_allocation = std::chrono::high_resolution_clock::now();
+    static size_t iteration_counter = 0;
+    static const size_t num_iterations = 29 * 10000;
+    static double diff_zero_tensor_ctor_without_import_mem = .0;
+    static double diff_import_standard_allocation = .0;
+    iteration_counter++;
+
+    diff_zero_tensor_ctor_without_import_mem += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_end_zero_tensor_ctor_without_import_mem - checkpoint_start_zero_tensor_ctor).count();
+    diff_import_standard_allocation += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_import_standard_allocation - checkpoint_end_zero_tensor_ctor_without_import_mem).count();
+
+    if (iteration_counter == num_iterations) {
+        diff_zero_tensor_ctor_without_import_mem /= num_iterations;
+        diff_import_standard_allocation /= num_iterations;
+
+        double total_zero_tensor_ctor = diff_zero_tensor_ctor_without_import_mem + diff_import_standard_allocation;
+
+        std::cout << "ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem = " << std::fixed << diff_zero_tensor_ctor_without_import_mem / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroTensor::ZeroTensor::diff_import_standard_allocation = " << std::fixed << diff_import_standard_allocation / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroTensor::ZeroTensor::total_zero_tensor_ctor = " << std::fixed << total_zero_tensor_ctor / 1000.0 << " ms" << std::endl;
+    }
 }
 
 // Note: Override data() members to not used OpenVINO library code to improve performance

@@ -61,7 +61,9 @@ std::shared_ptr<ZeroMem> ZeroMemPool::import_standard_allocation_memory(
     std::lock_guard<std::mutex> lock(_mutex);
     std::unique_lock<std::mutex> deleter_lock(_deleter_mutex);
 
+    // auto checkpoint_start_import_standard_allocation = std::chrono::high_resolution_clock::now();
     auto memory_id = zeroUtils::get_l0_context_memory_allocation_id(init_structs->getContext(), data);
+    // auto checkpoint_get_l0_context_memory_allocation_id = std::chrono::high_resolution_clock::now();
     if (memory_id == 0) {
         // try to import memory if it isn't part of the same zero context
         return import_standard_allocation(init_structs, data, bytes, is_input);
@@ -77,6 +79,15 @@ std::shared_ptr<ZeroMem> ZeroMemPool::import_standard_allocation_memory(
                 throw ZeroMemException("Tensor memory range is out of bounds of the allocated host memory");
             }
 
+            /* static size_t iteration_counter = 0;
+            static const size_t num_iterations = 29 * 10000;
+            static double diff_get_l0_context_memory_allocation_id = .0;
+            diff_get_l0_context_memory_allocation_id += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_get_l0_context_memory_allocation_id - checkpoint_start_import_standard_allocation).count();
+            iteration_counter++;
+            if (iteration_counter == num_iterations) {
+                diff_get_l0_context_memory_allocation_id /= num_iterations;
+                std::cout << "ZeroMemPool::import_standard_allocation_memory::diff_get_l0_context_memory_allocation_id = " << std::fixed << diff_get_l0_context_memory_allocation_id / 1000.0 << " ms" << std::endl;
+            } */
             return obj;
         } else {
             // shared_ptr counter is 0, we can not lock memory; wait until the deleter frees the memory

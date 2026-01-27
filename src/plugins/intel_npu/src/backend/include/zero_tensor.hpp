@@ -78,6 +78,8 @@ private:
     void update_strides() const;
     size_t get_bytes_capacity() const;
 
+    std::chrono::high_resolution_clock::time_point checkpoint_start_zero_tensor_ctor{std::chrono::high_resolution_clock::now()};
+
     std::shared_ptr<ZeroInitStructsHolder> _init_structs;
     Logger _logger;
 

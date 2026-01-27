@@ -262,16 +262,48 @@ void ZeroInferRequest::create_pipeline() {
 }
 
 void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const ov::SoPtr<ov::ITensor>& tensor) {
-    OV_NPU_PROFILE_FUNCTION();
     OV_ITT_TASK_CHAIN(ZERO_SET_TENSOR, itt::domains::LevelZeroBackend, "set_tensor", "set_tensor");
+
+    struct FunctionHelper {
+        bool _reachedLine = false;
+        ~FunctionHelper() {
+            OPENVINO_ASSERT(_reachedLine != false, "Function returned earlier than expected!");
+        }
+    } functionHelper;
+
+    auto checkpoint_after_check_tensor = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_get_user_input = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_io_shape = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_determine_dynamic_batch_size = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_after_batch_size_candidate = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_is_batched_input = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_get_user_input_2 = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_is_input_get_level_zero_input = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_make_zero_tensor = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_update_graph_arguments = std::chrono::high_resolution_clock::now();
+
+    auto checkpoint_start_set_tensor = std::chrono::high_resolution_clock::now();
 
     // return; /* Total time: 18.589 ms, Avg time:   0.019 ms, set_tensor/infer ratio: 2.171% */
 
     auto foundPort = find_port(port);
 
+    auto checkpoint_after_find_port = std::chrono::high_resolution_clock::now();
+
     // return; /* Total time: 34.635 ms, Avg time:   0.035 ms, set_tensor/infer ratio: 3.882% */
 
     OPENVINO_ASSERT(foundPort.found(), "Cannot find tensor for port ", port);
+
+    auto checkpoint_after_found_port_found = std::chrono::high_resolution_clock::now();
 
     // return; /* Total time: 35.859 ms, Avg time:   0.036 ms, set_tensor/infer ratio: 4.058% */
 
@@ -280,6 +312,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                      tensor,
                      foundPort.is_input() ? _metadata.inputs.at(foundPort.idx).supportsStridedLayout
                                           : _metadata.outputs.at(foundPort.idx).supportsStridedLayout);
+        checkpoint_after_check_tensor = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 37.309 ms, Avg time:   0.037 ms, set_tensor/infer ratio: 4.508% */
     } catch (const ov::Exception& ex) {
         OPENVINO_THROW("Failed to set tensor. ", ex.what());
@@ -291,12 +324,15 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             _logger.debug("ZeroInferRequest::set_tensor - got the same tensor, do nothing");
             return;
         }
+        checkpoint_get_user_input = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 46.543 ms, Avg time:   0.047 ms, set_tensor/infer ratio: 5.450% */
 
         auto ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
+        checkpoint_io_shape = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 45.347 ms, Avg time:   0.045 ms, set_tensor/infer ratio: 5.335% */
         auto batchSizeCandidate =
             determine_dynamic_batch_size(_metadata.inputs.at(foundPort.idx), ioShape, tensor._ptr, std::nullopt);
+        checkpoint_determine_dynamic_batch_size = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 46.058 ms, Avg time:   0.046 ms, set_tensor/infer ratio: 5.314% */
 
         if (batchSizeCandidate.has_value()) {
@@ -318,6 +354,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                 OPENVINO_THROW("Batching size is not matching all the tensors.");
             }
         }
+        checkpoint_after_batch_size_candidate = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 56.661 ms, Avg time:   0.057 ms, set_tensor/infer ratio: 6.456% */
 
         if (is_batched_input(foundPort.idx)) {
@@ -330,9 +367,9 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             get_user_input(foundPort.idx) = {};
         }
         // return; /* Total time: 59.085 ms, Avg time:   0.059 ms, set_tensor/infer ratio: 6.901% */
-
+        checkpoint_is_batched_input = std::chrono::high_resolution_clock::now();
         get_user_input(foundPort.idx) = tensor;
-
+        checkpoint_get_user_input_2 = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 55.195 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 1.495% */
     } else {
         if (_userOutputTensors.at(foundPort.idx)._ptr == tensor._ptr) {
@@ -373,6 +410,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
         auto& levelZeroTensor =
             foundPort.is_input() ? get_level_zero_input(foundPort.idx) : _levelZeroOutputTensors.at(foundPort.idx);
 
+        checkpoint_is_input_get_level_zero_input = std::chrono::high_resolution_clock::now();
         // return; /* Total time: 50.315 ms, Avg time:   0.050 ms, set_tensor/infer ratio: 1.321% */
 
         bool updateCommandListArg = false;
@@ -384,10 +422,12 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             // context.
             // return; /* Total time: 59.416 ms, Avg time:   0.059 ms, set_tensor/infer ratio: 1.616% */
             levelZeroTensor = std::make_shared<ZeroTensor>(_initStructs, _config, tensor);
+            checkpoint_make_zero_tensor = std::chrono::high_resolution_clock::now();
             // return; /* Total time: 109.284 ms, Avg time:   0.109 ms, set_tensor/infer ratio: 12.869% */
             // return; /* Total time: 77.685 ms, Avg time:   0.078 ms, set_tensor/infer ratio: 9.696% */
             updateCommandListArg = true;
         } catch (const ZeroMemException& exception) {
+            OPENVINO_THROW("Should not reach here for now");
             _logger.debug("ZeroInferRequest::set_tensor - exception caught while trying to create a Level Zero tensor "
                           "from the user tensor: %s",
                           exception.what());
@@ -419,7 +459,143 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
                                                   ? _metadata.inputs.at(foundPort.idx).indexUsedByDriver
                                                   : _metadata.outputs.at(foundPort.idx).indexUsedByDriver,
                                               levelZeroTensor);
+            checkpoint_update_graph_arguments = std::chrono::high_resolution_clock::now();
         }
+    }
+
+    functionHelper._reachedLine = true;
+
+    auto checkpoint_end_set_tensor = std::chrono::high_resolution_clock::now();
+
+    static size_t iteration_counter = 0;
+    static double diff_find_port = .0;
+    static double diff_found_port_found = .0;
+    static double diff_check_tensor = .0;
+    static double diff_get_user_input = .0;
+    static double diff_io_shape = .0;
+    static double diff_determine_dynamic_batch_size = .0;
+    static double diff_batch_size_candidate = .0;
+    static double diff_is_batched_input = .0;
+    static double diff_get_user_input_2 = .0;
+    static double diff_is_input_get_level_zero_input = .0;
+    static double diff_make_zero_tensor = .0;
+    static double diff_update_graph_arguments = .0;
+    static double diff_end_start_set_tensor = .0;
+    static const size_t num_iters = 29 * 10000;
+    diff_find_port += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_find_port - checkpoint_start_set_tensor).count() / 1000.0;
+    diff_found_port_found += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_found_port_found - checkpoint_after_find_port).count() / 1000.0;
+    diff_check_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_check_tensor - checkpoint_after_found_port_found).count() / 1000.0;
+    diff_get_user_input += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_get_user_input - checkpoint_after_check_tensor).count() / 1000.0;
+    diff_io_shape += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_io_shape - checkpoint_get_user_input).count() / 1000.0;
+    diff_determine_dynamic_batch_size += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_determine_dynamic_batch_size - checkpoint_io_shape).count() / 1000.0;
+    diff_batch_size_candidate += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_batch_size_candidate - checkpoint_determine_dynamic_batch_size).count() / 1000.0;
+    diff_is_batched_input += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_is_batched_input - checkpoint_after_batch_size_candidate).count() / 1000.0;
+    diff_get_user_input_2 += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_get_user_input_2 - checkpoint_is_batched_input).count() / 1000.0;
+    diff_is_input_get_level_zero_input += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_is_input_get_level_zero_input - checkpoint_get_user_input).count() / 1000.0;
+    diff_make_zero_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_make_zero_tensor - checkpoint_is_input_get_level_zero_input).count() / 1000.0;
+    diff_update_graph_arguments += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_update_graph_arguments - checkpoint_make_zero_tensor).count() / 1000.0;
+    diff_end_start_set_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_end_set_tensor - checkpoint_start_set_tensor).count() / 1000.0;
+
+    iteration_counter++;
+    // std::cout << "iteration counter = " << iteration_counter << std::endl;
+    if (iteration_counter == num_iters) {
+        diff_find_port /= num_iters;
+        diff_found_port_found /= num_iters;
+        diff_check_tensor /= num_iters;
+        diff_get_user_input /= num_iters;
+        diff_io_shape /= num_iters;
+        diff_determine_dynamic_batch_size /= num_iters;
+        diff_batch_size_candidate /= num_iters;
+        diff_is_batched_input /= num_iters;
+        diff_get_user_input_2 /= num_iters;
+        diff_is_input_get_level_zero_input /= num_iters;
+        diff_make_zero_tensor /= num_iters;
+        diff_update_graph_arguments /= num_iters;
+        diff_end_start_set_tensor /= num_iters;
+
+        std::cout << "Summary:" << std::fixed << std::endl;
+        std::cout << "diff_find_port = " << diff_find_port << " ms" << std::endl;
+        std::cout << "diff_found_port_found = " << diff_found_port_found << " ms" << std::endl;
+        std::cout << "diff_check_tensor = " << diff_check_tensor << " ms" << std::endl;
+        std::cout << "diff_get_user_input = " << diff_get_user_input << " ms" << std::endl;
+        std::cout << "diff_io_shape = " << diff_io_shape << " ms" << std::endl;
+        std::cout << "diff_determine_dynamic_batch_size = " << diff_determine_dynamic_batch_size << " ms" << std::endl;
+        std::cout << "diff_batch_size_candidate = " << diff_batch_size_candidate << " ms" << std::endl;
+        std::cout << "diff_is_batched_input = " << diff_is_batched_input << " ms" << std::endl;
+        std::cout << "diff_get_user_input_2 = " << diff_get_user_input_2 << " ms" << std::endl;
+        std::cout << "diff_is_input_get_level_zero_input = " << diff_is_input_get_level_zero_input << " ms" << std::endl;
+        std::cout << "diff_make_zero_tensor = " << diff_make_zero_tensor << " ms" << std::endl;
+        std::cout << "diff_update_graph_arguments = " << diff_update_graph_arguments << " ms" << std::endl;
+        std::cout << "diff_end_start_set_tensor = " << diff_end_start_set_tensor << " ms" << std::endl;
+
+        /*
+            Summary:
+            diff_find_port = 0.000052 ms
+            diff_found_port_found = 0.000001 ms
+            diff_check_tensor = 0.000189 ms
+            diff_get_user_input = 0.000002 ms
+            diff_io_shape = 0.000010 ms
+            diff_determine_dynamic_batch_size = 0.000027 ms
+            diff_batch_size_candidate = 0.000001 ms
+            diff_is_batched_input = 0.000001 ms
+            diff_get_user_input_2 = 0.000005 ms
+            diff_is_input_get_level_zero_input = 0.000170 ms
+            diff_make_zero_tensor = 0.001670 ms
+            diff_update_graph_arguments = 0.001049 ms
+            diff_end_start_set_tensor = 0.004882 ms
+        */
+
+       /*
+            Summary:
+            diff_find_port = 0.000043 ms
+            diff_found_port_found = 0.000000 ms
+            diff_check_tensor = 0.000182 ms
+            diff_get_user_input = 0.000001 ms
+            diff_io_shape = 0.000010 ms
+            diff_determine_dynamic_batch_size = 0.000021 ms
+            diff_batch_size_candidate = 0.000001 ms
+            diff_is_batched_input = 0.000000 ms
+            diff_get_user_input_2 = 0.000004 ms
+            diff_is_input_get_level_zero_input = 0.000162 ms
+            diff_make_zero_tensor = 0.001633 ms
+            diff_update_graph_arguments = 0.001063 ms
+            diff_end_start_set_tensor = 0.004788 ms
+       */
+
+       /*
+            Summary:
+            diff_find_port = 0.000043 ms
+            diff_found_port_found = 0.000000 ms
+            diff_check_tensor = 0.000182 ms
+            diff_get_user_input = 0.000001 ms
+            diff_io_shape = 0.000010 ms
+            diff_determine_dynamic_batch_size = 0.000021 ms
+            diff_batch_size_candidate = 0.000001 ms
+            diff_is_batched_input = 0.000000 ms
+            diff_get_user_input_2 = 0.000004 ms
+            diff_is_input_get_level_zero_input = 0.000162 ms
+            diff_make_zero_tensor = 0.001633 ms
+            diff_update_graph_arguments = 0.001063 ms
+            diff_end_start_set_tensor = 0.004788 ms
+       */
+
+      /*
+            Summary:
+            diff_find_port = 0.000049 ms
+            diff_found_port_found = 0.000000 ms
+            diff_check_tensor = 0.000207 ms
+            diff_get_user_input = 0.000000 ms
+            diff_io_shape = 0.000007 ms
+            diff_determine_dynamic_batch_size = 0.000024 ms
+            diff_batch_size_candidate = 0.000001 ms
+            diff_is_batched_input = 0.000001 ms
+            diff_get_user_input_2 = 0.000004 ms
+            diff_is_input_get_level_zero_input = 0.000207 ms
+            diff_make_zero_tensor = 0.001819 ms
+            diff_update_graph_arguments = 0.001194 ms
+            diff_end_start_set_tensor = 0.005266 ms
+      */
+
     }
 
     // return; /* Total time: 161.998 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 18.372% */

@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
         // Parse command line arguments
         std::string model_path = "Model0_kv1152_02_REP0108_moe_chunk_0.blob";
         std::string device_name = "NPU";
-        size_t num_iterations = 1000;
+        size_t num_iterations = 10000;
 
         if (argc > 1) {
             model_path = argv[1];
@@ -244,17 +244,17 @@ int main(int argc, char* argv[]) {
         std::cout << "  All tensor pools created" << std::endl;
 
         // Step 6: Warmup run
-        std::cout << "[Step 6] Running warmup..." << std::endl;
+        /* std::cout << "[Step 6] Running warmup..." << std::endl;
         for (size_t i = 0; i < compiled_model.inputs().size(); ++i) {
             infer_request.set_tensor(compiled_model.inputs()[i], input_tensor_pools[i][0]);
         }
         infer_request.infer();
-        std::cout << "  Warmup completed" << std::endl;
+        std::cout << "  Warmup completed" << std::endl; */
 
         // Step 7: Performance test loop with random tensor selection
         std::cout << "\n[Step 7] Running performance test (" << num_iterations << " iterations)..." << std::endl;
         std::cout << "  Note: Each iteration randomly selects tensors from pool to simulate MoE expert switching" << std::endl;
-        // std::getchar();
+        std::getchar();
         Timer set_tensor_timer;
         Timer infer_timer;
         
@@ -265,28 +265,28 @@ int main(int argc, char* argv[]) {
 
         for (size_t iter = 0; iter < num_iterations; ++iter) {
             // Measure set_tensor time with randomly selected tensors
-            set_tensor_timer.record([&]() {
+            // set_tensor_timer.record([&]() {
                 for (size_t i = 0; i < compiled_model.inputs().size(); ++i) {
                     // Randomly select a tensor from the pool for this input
                     // size_t tensor_idx = dis(gen);
                     infer_request.set_tensor(compiled_model.inputs()[i], input_tensor_pools[i][tensor_idx]);
                     tensor_idx = ++tensor_idx % 30;
                 }
-            });
+            // });
 
             // Measure infer time
-            infer_timer.record([&]() {
+            // infer_timer.record([&]() {
                 infer_request.infer();
-            });
+            // });
 
             // Print progress every 10 iterations
-            if ((iter + 1) % 10 == 0) {
+            /* if ((iter + 1) % 10 == 0) {
                 std::cout << "  Progress: " << (iter + 1) << "/" << num_iterations << std::endl;
-            }
+            } */
         }
 
         // Step 8: Print statistics
-        std::cout << "\n========================================" << std::endl;
+        /* std::cout << "\n========================================" << std::endl;
         std::cout << "Performance Statistics" << std::endl;
         std::cout << "========================================" << std::endl;
         std::cout << std::fixed << std::setprecision(3);
@@ -302,7 +302,7 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
         std::cout << "set_tensor/infer ratio: " 
                   << (set_tensor_timer.avg_ms() / infer_timer.avg_ms() * 100.0) << "%" << std::endl;
-        std::cout << "========================================" << std::endl;
+        std::cout << "========================================" << std::endl; */
 
         return EXIT_SUCCESS;
 

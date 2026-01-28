@@ -72,6 +72,14 @@ public:
     void prevent_reuse();
     bool can_be_reused();
 
+    bool is_continuous() const override {
+        return _is_continuous;
+    }
+
+    size_t get_byte_size() const override {
+        return _bytes_capacity;
+    }
+
     ~ZeroTensor() override;
 
 private:
@@ -96,6 +104,8 @@ private:
     bool _can_be_reused = false;
 
     std::shared_ptr<ZeroMem> _mem_ref;
+
+    bool _is_continuous = false;
 };
 
 }  // namespace intel_npu

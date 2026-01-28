@@ -108,7 +108,7 @@ public:
      *
      * @return true if tensor is continuous
      */
-    bool is_continuous() const;
+    virtual bool is_continuous() const;
 
     /**
      * @brief Copy tensor, destination tensor should have the same element type and shape

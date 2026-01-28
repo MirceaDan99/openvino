@@ -40,12 +40,13 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
       _shape{shape},
       _strides{},
       _strides_once{},
-      _is_input(is_input) {
+      _is_input(is_input),
+      _is_continuous{ITensor::is_continuous()} {
     OPENVINO_ASSERT(_element_type.is_static());
     const auto byte_size = ov::util::get_memory_size_safe(element_type, _shape);
     OPENVINO_ASSERT(byte_size, "Cannot allocate memory for type: ", element_type, " and shape: ", _shape);
 
-    _bytes_capacity = get_byte_size();
+    _bytes_capacity = ITensor::get_byte_size();
 
     _mem_ref = ZeroMemPool::get_instance().allocate_zero_memory(_init_structs,
                                                                 byte_size.value(),
@@ -66,7 +67,8 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
       _element_type{_user_tensor->get_element_type()},
       _shape{_user_tensor->get_shape()},
       _strides{_element_type.bitwidth() >= 8 ? _user_tensor->get_strides() : ov::Strides{}},
-      _strides_once{} {
+      _strides_once{},
+      _is_continuous{_user_tensor->is_continuous()} {
     OPENVINO_ASSERT(_element_type.is_static());
 
     _bytes_capacity = get_bytes_capacity();
@@ -206,7 +208,7 @@ void ZeroTensor::set_shape(ov::Shape new_shape) {
 
     _shape = std::move(new_shape);
 
-    if (get_byte_size() > _bytes_capacity) {
+    if (ITensor::get_byte_size() > _bytes_capacity) {
         OPENVINO_ASSERT(_init_structs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0),
                         "Re-shaping the tensor with a larger shape is not available using this driver version. "
                         "Please update the driver to the latest version.");
@@ -226,7 +228,7 @@ void ZeroTensor::set_shape(ov::Shape new_shape) {
                                                                     _is_input);
         _ptr = _mem_ref->data();
         OPENVINO_ASSERT(byte_size.value() == 0 || _ptr != nullptr, "Failed to allocate zero memory");
-        _bytes_capacity = get_byte_size();
+        _bytes_capacity = ITensor::get_byte_size();
 
         _reset_tensor_memory = true;
     }

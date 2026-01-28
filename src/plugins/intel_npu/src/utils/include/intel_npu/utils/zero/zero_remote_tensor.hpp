@@ -58,6 +58,14 @@ public:
      */
     const ov::Shape& get_shape() const override;
 
+    bool is_continuous() const override {
+        return _is_continuous;
+    }
+
+    size_t get_byte_size() const override {
+        return _byte_size;
+    }
+
     /**
      * @return Tensor's strides in bytes
      */
@@ -109,6 +117,9 @@ private:
 
     ov::Tensor _mmap_tensor;
     std::shared_ptr<ZeroMem> _host_memory;
+
+    bool _is_continuous;
+    size_t _byte_size;
 };
 
 inline bool is_remote_tensor(const std::shared_ptr<ov::ITensor>& tensor) {

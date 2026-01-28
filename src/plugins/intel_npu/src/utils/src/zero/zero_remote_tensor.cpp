@@ -230,6 +230,8 @@ ZeroRemoteTensor::ZeroRemoteTensor(const std::shared_ptr<ov::IRemoteContext>& co
     OPENVINO_ASSERT(byte_size, "Cannot allocate memory for type: ", element_type, " and shape: ", shape);
 
     allocate(*byte_size);
+    _is_continuous = IRemoteTensor::is_continuous();
+    _byte_size = IRemoteTensor::get_byte_size();
 }
 
 const ov::element::Type& ZeroRemoteTensor::get_element_type() const {
@@ -261,6 +263,8 @@ void ZeroRemoteTensor::set_shape(ov::Shape new_shape) {
 
     _strides.clear();
     update_strides();
+    _is_continuous = IRemoteTensor::is_continuous();
+    _byte_size = IRemoteTensor::get_byte_size();
 }
 
 void ZeroRemoteTensor::update_strides() {

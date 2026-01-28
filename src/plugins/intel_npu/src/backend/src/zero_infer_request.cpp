@@ -309,7 +309,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
         }
         // return; /* Total time: 46.543 ms, Avg time:   0.047 ms, set_tensor/infer ratio: 5.450% */
 
-        auto ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
+        const auto& ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
         // return; /* Total time: 45.347 ms, Avg time:   0.045 ms, set_tensor/infer ratio: 5.335% */
         auto batchSizeCandidate =
             determine_dynamic_batch_size(_metadata.inputs.at(foundPort.idx), ioShape, tensor._ptr, std::nullopt);
@@ -356,7 +356,7 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             return;
         }
 
-        auto ioShape = _compiledModel->outputs()[foundPort.idx].get_partial_shape();
+        const auto& ioShape = _compiledModel->outputs()[foundPort.idx].get_partial_shape();
         auto batchSizeCandidate =
             determine_dynamic_batch_size(_metadata.outputs.at(foundPort.idx), ioShape, tensor._ptr, std::nullopt);
 
@@ -540,7 +540,7 @@ void ZeroInferRequest::set_tensors(const ov::Output<const ov::Node>& port,
 
     _logger.debug("ZeroInferRequest::set_tensors: %zu", tensors.size());
 
-    auto ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
+    const auto& ioShape = _compiledModel->inputs()[foundPort.idx].get_partial_shape();
     auto batchSizeCandidate =
         determine_dynamic_batch_size(_metadata.inputs.at(foundPort.idx), ioShape, nullptr, tensors.size());
 

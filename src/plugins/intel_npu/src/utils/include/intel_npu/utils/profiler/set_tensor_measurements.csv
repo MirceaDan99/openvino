@@ -1,0 +1,5 @@
+ZeroMemPool::import_standard_allocation_memory::diff_get_l0_context_memory_allocation_id,ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem,ZeroTensor::ZeroTensor::diff_import_standard_allocation,ZeroTensor::ZeroTensor::total_zero_tensor_ctor,ZeroInferRequest::set_tensor::diff_find_port,ZeroInferRequest::set_tensor::diff_check_tensor,ZeroInferRequest::set_tensor::diff_after_batch_size_logic,ZeroInferRequest::set_tensor::diff_make_zero_tensor,ZeroInferRequest::set_tensor::diff_update_graph_arguments,ZeroInferRequest::set_tensor::total_sum_diffs
+N/A,N/A,N/A,N/A,0.000025,0.000096,0.000046,0.000958,0.000384,0.001509
+N/A,N/A,N/A,N/A,0.000042,0.000157,0.000086,0.001608,0.000809,0.002703
+0.000562,0.000048,N/A,N/A,0.000029,0.000131,0.000061,0.001682,0.000649,0.002552
+N/A,0.000124,0.001194,0.001318,0.000055,0.000206,0.000131,0.002165,0.001156,0.003713

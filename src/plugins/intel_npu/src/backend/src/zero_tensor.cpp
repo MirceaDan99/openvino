@@ -37,8 +37,9 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
     : _init_structs(init_structs),
       _logger("ZeroTensor", config.get<LOG_LEVEL>()),
       _element_type{element_type},
-      _shape{shape},
-      _strides{},
+      _shape_internal{shape},
+      _shape{_shape_internal},
+      _strides{_strides_internal},
       _strides_once{},
       _is_input(is_input),
       _is_continuous{ITensor::is_continuous()} {
@@ -66,10 +67,14 @@ ZeroTensor::ZeroTensor(const std::shared_ptr<ZeroInitStructsHolder>& init_struct
       _user_tensor(user_tensor),
       _element_type{_user_tensor->get_element_type()},
       _shape{_user_tensor->get_shape()},
-      _strides{_element_type.bitwidth() >= 8 ? _user_tensor->get_strides() : ov::Strides{}},
+      _strides{_strides_internal},
       _strides_once{},
       _is_continuous{_user_tensor->is_continuous()} {
     OPENVINO_ASSERT(_element_type.is_static());
+
+    if (_element_type.bitwidth() >= 8) {
+        _strides = _user_tensor->get_strides();
+    }
 
     _bytes_capacity = get_bytes_capacity();
 
@@ -169,26 +174,27 @@ void ZeroTensor::update_strides() const {
     }
 
     auto& shape = get_shape();
-    if (_strides.empty() && !shape.empty()) {
-        _strides.resize(shape.size());
-        _strides.back() = shape.back() == 0 ? 0 : _element_type.size();
+    if (_strides_internal.empty() && !shape.empty()) {
+        _strides_internal.resize(shape.size());
+        _strides_internal.back() = shape.back() == 0 ? 0 : _element_type.size();
         std::transform(shape.crbegin(),
                        shape.crend() - 1,
-                       _strides.rbegin(),
-                       _strides.rbegin() + 1,
+                       _strides_internal.rbegin(),
+                       _strides_internal.rbegin() + 1,
                        std::multiplies<size_t>());
     }
+    _strides = _strides_internal;
 }
 
 size_t ZeroTensor::get_bytes_capacity() const {
-    size_t original_shape_size = ov::shape_size(_shape);
+    size_t original_shape_size = ov::shape_size(_shape.get());
 
-    if (_user_tensor == nullptr || _element_type.bitwidth() < 8 || original_shape_size == 0 || _shape.empty() ||
-        _strides.empty()) {
+    if (_user_tensor == nullptr || _element_type.bitwidth() < 8 || original_shape_size == 0 || _shape.get().empty() ||
+        _strides.get().empty()) {
         return ov::util::get_memory_size(_element_type, original_shape_size);
     }
 
-    return intel_npu::zeroUtils::get_capacity_size(_shape, _strides);
+    return intel_npu::zeroUtils::get_capacity_size(_shape.get(), _strides.get());
 }
 
 const ov::Strides& ZeroTensor::get_strides() const {
@@ -198,15 +204,16 @@ const ov::Strides& ZeroTensor::get_strides() const {
 
     std::call_once(_strides_once, &ZeroTensor::update_strides, this);
 
-    return _strides;
+    return _strides.get();
 }
 
 void ZeroTensor::set_shape(ov::Shape new_shape) {
-    if (_shape == new_shape) {
+    if (_shape.get() == new_shape) {
         return;
     }
 
-    _shape = std::move(new_shape);
+    _shape_internal = std::move(new_shape);
+    _shape = _shape_internal;
 
     if (ITensor::get_byte_size() > _bytes_capacity) {
         OPENVINO_ASSERT(_init_structs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0),
@@ -233,7 +240,7 @@ void ZeroTensor::set_shape(ov::Shape new_shape) {
         _reset_tensor_memory = true;
     }
 
-    _strides.clear();
+    _strides_internal.clear();
     update_strides();
 }
 

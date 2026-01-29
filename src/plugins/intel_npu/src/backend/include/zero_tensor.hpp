@@ -94,9 +94,11 @@ private:
     ov::SoPtr<ov::ITensor> _user_tensor;
 
     ov::element::Type _element_type;
-    ov::Shape _shape;
+    ov::Shape _shape_internal;
+    std::reference_wrapper<const ov::Shape> _shape;
     size_t _bytes_capacity;
-    mutable ov::Strides _strides;
+    mutable ov::Strides _strides_internal;
+    mutable std::reference_wrapper<const ov::Strides> _strides;
     mutable std::once_flag _strides_once;
     void* _ptr = nullptr;
     bool _reset_tensor_memory = false;

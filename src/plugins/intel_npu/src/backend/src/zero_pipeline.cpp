@@ -205,6 +205,7 @@ Pipeline::Pipeline(const Config& config,
 }
 
 void Pipeline::push() {
+    auto checkpoint_pipeline_push_start = std::chrono::high_resolution_clock::now();
     _logger.debug("Pipeline - push() started");
 
     if (_init_structs->getCommandQueueDdiTable().version() < ZE_MAKE_VERSION(1, 1) &&
@@ -232,6 +233,18 @@ void Pipeline::push() {
     }
 
     _logger.debug("Pipeline - push() completed");
+    auto checkpoint_pipeline_push_end = std::chrono::high_resolution_clock::now();
+    static const size_t num_iterations = 10000 + 1; // + warmup
+    static size_t counter = 0;
+    static double diff_pipeline_push = .0;
+    if (counter > 0) {  // ignore warmup
+        diff_pipeline_push += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_pipeline_push_end - checkpoint_pipeline_push_start).count();
+    }
+    counter++;
+    if (counter == num_iterations) {
+        diff_pipeline_push /= num_iterations;
+        std::cout << "Pipeline::push::diff_pipeline_push = " << diff_pipeline_push / 1000.0 << " ms" << std::endl;
+    }
 };
 
 void Pipeline::pull() {

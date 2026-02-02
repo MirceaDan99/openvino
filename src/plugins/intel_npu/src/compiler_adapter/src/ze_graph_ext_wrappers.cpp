@@ -576,11 +576,10 @@ std::string ZeGraphExtWrappers::getCompilerSupportedOptions() const {
             // 2. allocate buffer for it
             std::vector<char> sup_options_chr(str_size);
             // 3. ask driver to populate char list
-            auto result =
-                _zeroInitStruct->getGraphDdiTable().pfnCompilerGetSupportedOptions(_zeroInitStruct->getDevice(),
-                                                                                   ZE_NPU_COMPILER_OPTIONS,
-                                                                                   &str_size,
-                                                                                   sup_options_chr.data());
+            result = _zeroInitStruct->getGraphDdiTable().pfnCompilerGetSupportedOptions(_zeroInitStruct->getDevice(),
+                                                                                        ZE_NPU_COMPILER_OPTIONS,
+                                                                                        &str_size,
+                                                                                        sup_options_chr.data());
             if (result == ZE_RESULT_SUCCESS) {
                 // convert received buff to string
                 std::string supported_options_list_str(sup_options_chr.data());
@@ -606,7 +605,9 @@ std::string ZeGraphExtWrappers::getCompilerSupportedOptions() const {
     return {};
 }
 
-bool ZeGraphExtWrappers::isOptionSupported(std::string optName, std::optional<std::string> optValue) const {
+bool ZeGraphExtWrappers::isOptionSupported(
+    const std::string_view& optName,
+    std::optional<std::reference_wrapper<const std::string_view>> optValue) const {
     // Early exit if api is not supported
     if (_graphExtVersion < ZE_MAKE_VERSION(1, 11)) {
         return false;
@@ -622,8 +623,8 @@ bool ZeGraphExtWrappers::isOptionSupported(std::string optName, std::optional<st
     }
 #endif
 
-    const char* optname_ch = optName.c_str();
-    const char* optvalue_ch = optValue.has_value() ? optValue.value().c_str() : nullptr;
+    const char* optname_ch = optName.data();
+    const char* optvalue_ch = optValue.has_value() ? optValue.value().get().data() : nullptr;
     auto result = _zeroInitStruct->getGraphDdiTable().pfnCompilerIsOptionSupported(_zeroInitStruct->getDevice(),
                                                                                    ZE_NPU_COMPILER_OPTIONS,
                                                                                    optname_ch,

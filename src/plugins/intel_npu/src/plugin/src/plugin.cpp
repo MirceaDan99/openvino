@@ -122,14 +122,17 @@ std::shared_ptr<ov::Model> create_dummy_model(const std::vector<IODescriptor>& i
     return std::make_shared<ov::Model>(results, parameters);
 }
 
-std::map<std::string, std::string> any_copy(const ov::AnyMap& params) {
-    std::map<std::string, std::string> result;
-    for (auto&& value : params) {
+std::map<std::string_view, std::string_view> any_copy(const ov::AnyMap& params) {
+    std::map<std::string_view, std::string_view> result;
+    for (const auto& value : params) {
         // The value of cache_encryption_callbacks cannot be converted to std::string
         if (value.first == ov::cache_encryption_callbacks.name()) {
             continue;
         }
-        result.emplace(value.first, value.second.as<std::string>());
+        result.emplace(
+            value.first,
+            value.second.as<std::string>()
+                .c_str());  // no dangling pointer until next call of ov::Any::as<...> (its _temp will change)
     }
     return result;
 }
@@ -281,7 +284,7 @@ void Plugin::init_options() {
 #define REGISTER_OPTION(OPT_TYPE)                             \
     do {                                                      \
         auto dummyopt = details::makeOptionModel<OPT_TYPE>(); \
-        std::string o_name = dummyopt.key().data();           \
+        const std::string_view o_name = dummyopt.key();       \
         _options->add<OPT_TYPE>();                            \
         _globalConfig.enable(std::move(o_name), false);       \
     } while (0)
@@ -468,7 +471,7 @@ void Plugin::filter_config_by_compiler_support(FilteredConfig& cfg) const {
     _logger.debug("Legacy registration: %s", legacy ? "true" : "false");
 
     // Parse enables
-    cfg.walkEnables([&](const std::string& key) {
+    cfg.walkEnables([&](const std::string_view& key) {
         bool isEnabled = false;
         auto opt = cfg.getOpt(key);
         // Runtime (plugin-only) options are always enabled
@@ -493,7 +496,7 @@ void Plugin::filter_config_by_compiler_support(FilteredConfig& cfg) const {
                     // Not found in the supported options list.
                     if (compiler != nullptr) {
                         // Checking if it is a private option?
-                        isEnabled = compiler->is_option_supported(key);
+                        isEnabled = compiler->is_option_supported(key.data());
                     } else {
                         // Not in the list and not a private option = disabling
                         isEnabled = false;
@@ -502,9 +505,9 @@ void Plugin::filter_config_by_compiler_support(FilteredConfig& cfg) const {
             }
         }
         if (!isEnabled) {
-            _logger.debug("Config option %s not supported! Requirements not met.", key.c_str());
+            _logger.debug("Config option %s not supported! Requirements not met.", key.data());
         } else {
-            _logger.debug("Enabled config option %s", key.c_str());
+            _logger.debug("Enabled config option %s", key.data());
         }
         // update enable flag
         cfg.enable(key, isEnabled);
@@ -552,16 +555,16 @@ FilteredConfig Plugin::fork_local_config(const ov::AnyMap& properties,
     }
     bool compiler_changed = false;
 
-    const std::map<std::string, std::string> rawConfig = any_copy(properties);
+    const std::map<std::string_view, std::string_view> rawConfig = any_copy(properties);
 
     // Check if compiler was changed
     // 1. Check for compiler change
-    auto it = rawConfig.find(std::string(COMPILER_TYPE::key()));
+    auto it = rawConfig.find(COMPILER_TYPE::key());
     if (it != rawConfig.end()) {
         if (localConfigPtr->getString<COMPILER_TYPE>() != it->second) {
             // Compiler type has changed!
             // Set new compiler type
-            localConfigPtr->update({{std::string(COMPILER_TYPE::key()), it->second}});
+            localConfigPtr->update({{COMPILER_TYPE::key(), it->second}});
             // enable/disable config keys based on what the new compiler supports
             filter_config_by_compiler_support(*localConfigPtr);
             compiler_changed = true;
@@ -584,21 +587,21 @@ FilteredConfig Plugin::fork_local_config(const ov::AnyMap& properties,
     // look for unsupported internals
     // first in what we inherited from globalconfig by forking it - ONLY if compiler has changed
     if (compiler_changed) {
-        localConfigPtr->walkInternals([&](const std::string& key) {
-            if (!compiler->is_option_supported(key)) {
-                OPENVINO_THROW("[ NOT_FOUND ] Option '", key, "' is not supported for current configuration");
+        localConfigPtr->walkInternals([&](const std::string_view& key) {
+            if (!compiler->is_option_supported(key.data())) {
+                OPENVINO_THROW("[ NOT_FOUND ] Option '", key.data(), "' is not supported for current configuration");
             }
         });
     }
     // secondly, in the new config provided by user
-    std::map<std::string, std::string> cfgs_to_set;
+    std::map<std::string_view, std::string_view> cfgs_to_set;
     for (const auto& [key, value] : rawConfig) {
         if (!localConfigPtr->hasOpt(key)) {
             // not a known config key
             if (!compiler->is_option_supported(key)) {
                 OPENVINO_THROW("[ NOT_FOUND ] Option '", key, "' is not supported for current configuration");
             } else {
-                localConfigPtr->addOrUpdateInternal(key, value);
+                localConfigPtr->addOrUpdateInternal(std::string(key), std::string(value));
             }
         } else {
             cfgs_to_set.emplace(key, value);
@@ -831,14 +834,14 @@ std::shared_ptr<ov::ICompiledModel> Plugin::compile_model(const std::shared_ptr<
                                  useBaseModelSerializer ? "ALL_WEIGHTS_COPY" : "NO_WEIGHTS_COPY"}});
         }
     } else {
-        const auto compilerType = localConfig.get<COMPILER_TYPE>();
-        if (compilerType == ov::intel_npu::CompilerType::PLUGIN) {
+        const auto compilerType_ = localConfig.get<COMPILER_TYPE>();
+        if (compilerType_ == ov::intel_npu::CompilerType::PLUGIN) {
             if (localConfig.isAvailable(ov::intel_npu::use_base_model_serializer.name())) {
                 localConfig.update({{ov::intel_npu::use_base_model_serializer.name(), "NO"}});
             } else if (localConfig.isAvailable(ov::intel_npu::model_serializer_version.name())) {
                 localConfig.update({{ov::intel_npu::model_serializer_version.name(), "NO_WEIGHTS_COPY"}});
             }
-        } else if (compilerType == ov::intel_npu::CompilerType::DRIVER) {
+        } else if (compilerType_ == ov::intel_npu::CompilerType::DRIVER) {
             if (localConfig.isAvailable(ov::intel_npu::use_base_model_serializer.name())) {
                 localConfig.update({{ov::intel_npu::use_base_model_serializer.name(), "YES"}});
             } else if (localConfig.isAvailable(ov::intel_npu::model_serializer_version.name())) {
@@ -1101,14 +1104,14 @@ ov::SupportedOpsMap Plugin::query_model(const std::shared_ptr<const ov::Model>& 
                                  useBaseModelSerializer ? "ALL_WEIGHTS_COPY" : "NO_WEIGHTS_COPY"}});
         }
     } else {
-        const auto compilerType = localConfig.get<COMPILER_TYPE>();
-        if (compilerType == ov::intel_npu::CompilerType::PLUGIN) {
+        const auto compilerType_ = localConfig.get<COMPILER_TYPE>();
+        if (compilerType_ == ov::intel_npu::CompilerType::PLUGIN) {
             if (localConfig.isAvailable(ov::intel_npu::use_base_model_serializer.name())) {
                 localConfig.update({{ov::intel_npu::use_base_model_serializer.name(), "NO"}});
             } else if (localConfig.isAvailable(ov::intel_npu::model_serializer_version.name())) {
                 localConfig.update({{ov::intel_npu::model_serializer_version.name(), "NO_WEIGHTS_COPY"}});
             }
-        } else if (compilerType == ov::intel_npu::CompilerType::DRIVER) {
+        } else if (compilerType_ == ov::intel_npu::CompilerType::DRIVER) {
             if (localConfig.isAvailable(ov::intel_npu::use_base_model_serializer.name())) {
                 localConfig.update({{ov::intel_npu::use_base_model_serializer.name(), "YES"}});
             } else if (localConfig.isAvailable(ov::intel_npu::model_serializer_version.name())) {

@@ -6,40 +6,37 @@
 
 namespace intel_npu {
 
-bool FilteredConfig::hasOpt(std::string_view key) const {
+bool FilteredConfig::hasOpt(const std::string_view& key) const {
     return _desc->has(key);
 }
 
-details::OptionConcept FilteredConfig::getOpt(std::string_view key) const {
+details::OptionConcept FilteredConfig::getOpt(const std::string_view& key) const {
     return _desc->get(key);
 }
 
-bool FilteredConfig::isOptPublic(std::string_view key) const {
-    auto log = Logger::global().clone("Config");
+bool FilteredConfig::isOptPublic(const std::string_view& key) const {
     if (_desc->has(key)) {
         return _desc->get(key).isPublic();
     } else {
-        log.warning("Option '%s' not registered in config", key.data());
+        _log.warning("Option '%s' not registered in config", key.data());
         return true;
     }
 }
 
 void FilteredConfig::update(const ConfigMap& options, OptionMode mode) {
-    auto log = Logger::global().clone("Config");
-
     for (const auto& p : options) {
-        log.trace("Update option '%s' to value '%s'", p.first.c_str(), p.second.c_str());
+        _log.trace("Update option '%s' to value '%s'", p.first.data(), p.second.data());
 
         if (isAvailable(p.first)) {
             const auto opt = _desc->get(p.first, mode);
-            _impl[opt.key().data()] = opt.validateAndParse(p.second);
+            _impl[opt.key()] = opt.validateAndParse(p.second);
         } else {
-            OPENVINO_THROW("[ NOT_FOUND ] Option '" + p.first + "' is not supported for current configuration");
+            OPENVINO_THROW("[ NOT_FOUND ] Option '", p.first.data(), "' is not supported for current configuration");
         }
     }
 }
 
-bool FilteredConfig::isAvailable(std::string key) const {
+bool FilteredConfig::isAvailable(const std::string_view& key) const {
     // NPUW properties are requested by OV Core during caching and have no effect on the NPU plugin. But we still need
     // to enable those for OV Core to query.
     if (key.find("NPUW") != key.npos) {
@@ -53,53 +50,51 @@ bool FilteredConfig::isAvailable(std::string key) const {
     return false;
 }
 
-void FilteredConfig::enable(std::string key, bool enabled) {
+void FilteredConfig::enable(const std::string_view& key, bool enabled) {
     // we insert for all cases - no need to check if exists
     _enabled[key] = enabled;
 }
 
 void FilteredConfig::enableAll() {
     _desc->walk([&](const details::OptionConcept& opt) {
-        enable(opt.key().data(), true);
+        enable(opt.key(), true);
     });
 }
 
 void FilteredConfig::enableRuntimeOptions() {
     _desc->walk([&](const details::OptionConcept& opt) {
         if (opt.mode() == OptionMode::RunTime) {
-            enable(opt.key().data(), true);
+            enable(opt.key(), true);
         }
     });
 }
 
-void FilteredConfig::walkEnables(std::function<void(const std::string&)> cb) const {
+void FilteredConfig::walkEnables(std::function<void(const std::string_view&)> cb) const {
     for (const auto& itr : _enabled) {
         cb(itr.first);
     }
 }
 
-void FilteredConfig::walkInternals(std::function<void(const std::string&)> cb) const {
+void FilteredConfig::walkInternals(std::function<void(const std::string_view&)> cb) const {
     for (const auto& itr : _internal_compiler_configs) {
         cb(itr.first);
     }
 }
 
 void FilteredConfig::addOrUpdateInternal(std::string key, std::string value) {
-    auto log = Logger::global().clone("Config");
     if (_internal_compiler_configs.count(key) != 0) {
-        log.warning("Internal compiler option '%s' was already registered! Updating value only!", key.c_str());
+        _log.warning("Internal compiler option '%s' was already registered! Updating value only!", key.data());
         _internal_compiler_configs.at(key) = std::move(value);
     } else {
         // manual insert
-        log.trace("Store internal compiler option %s: %s", key.c_str(), value.c_str());
-        _internal_compiler_configs.insert(std::make_pair(key, value));  // insert new
+        _log.trace("Store internal compiler option %s: %s", key.data(), value.data());
+        _internal_compiler_configs.insert(std::make_pair(std::move(key), std::move(value)));  // insert new
     }
 }
 
-std::string FilteredConfig::getInternal(std::string key) const {
-    auto log = Logger::global().clone("Config");
+std::string_view FilteredConfig::getInternal(const std::string_view& key) const {
     if (_internal_compiler_configs.count(key) == 0) {
-        OPENVINO_THROW(std::string("Internal compiler option " + key + " does not exist! "));
+        OPENVINO_THROW("Internal compiler option `", key.data(), "` does not exist! ");
     }
     return _internal_compiler_configs.at(key);
 }

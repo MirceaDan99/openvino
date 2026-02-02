@@ -68,56 +68,56 @@ struct OptionParser;
 
 template <>
 struct OptionParser<std::string> final {
-    static std::string parse(std::string_view val) {
+    static std::string parse(const std::string_view& val) {
         return {val.data(), val.size()};
     }
 };
 
 template <>
 struct OptionParser<bool> final {
-    static bool parse(std::string_view val);
+    static bool parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<int32_t> final {
-    static int32_t parse(std::string_view val);
+    static int32_t parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<uint32_t> final {
-    static uint32_t parse(std::string_view val);
+    static uint32_t parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<int64_t> final {
-    static int64_t parse(std::string_view val);
+    static int64_t parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<uint64_t> final {
-    static uint64_t parse(std::string_view val);
+    static uint64_t parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<double> final {
-    static double parse(std::string_view val);
+    static double parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<ov::log::Level> final {
-    static ov::log::Level parse(std::string_view val);
+    static ov::log::Level parse(const std::string_view& val);
 };
 
 template <>
 struct OptionParser<ov::hint::ExecutionMode> final {
-    static ov::hint::ExecutionMode parse(std::string_view val);
+    static ov::hint::ExecutionMode parse(const std::string_view& val);
 };
 
 void splitAndApply(const std::string& str, char delim, std::function<void(std::string_view)> callback);
 
 template <typename T>
 struct OptionParser<std::vector<T>> final {
-    static std::vector<T> parse(std::string_view val) {
+    static std::vector<T> parse(const std::string_view& val) {
         std::vector<T> res;
         std::string val_str(val);
         splitAndApply(val_str, ',', [&](std::string_view item) {
@@ -129,7 +129,7 @@ struct OptionParser<std::vector<T>> final {
 
 template <typename K, typename V>
 struct OptionParser<std::map<K, V>> final {
-    static std::map<K, V> parse(std::string_view val) {
+    static std::map<K, V> parse(const std::string_view& val) {
         std::map<K, V> res;
         std::string val_str(val);
         splitAndApply(val_str, ',', [&](std::string_view item) {
@@ -145,7 +145,7 @@ struct OptionParser<std::map<K, V>> final {
 
 template <typename Rep, typename Period>
 struct OptionParser<std::chrono::duration<Rep, Period>> final {
-    static std::chrono::duration<Rep, Period> parse(std::string_view val) {
+    static std::chrono::duration<Rep, Period> parse(const std::string_view& val) {
         std::istringstream stream(val.data());
 
         Rep count{};
@@ -270,7 +270,7 @@ struct OptionBase {
     }
 
     // Overload this to provide more specific parser.
-    static ValueType parse(std::string_view val) {
+    static ValueType parse(const std::string_view& val) {
         return OptionParser<ValueType>::parse(val);
     }
 
@@ -374,7 +374,7 @@ struct OptionConcept final {
     bool (*isValueSupportedImpl)(std::string_view val) =
         nullptr;  // better make this private, but won't be able to use aggregate initialization anymore in
                   // "makeOptionModel"
-    std::shared_ptr<OptionValue> (*validateAndParse)(std::string_view val) = nullptr;
+    std::shared_ptr<OptionValue> (*validateAndParse)(const std::string_view& val) = nullptr;
     std::optional<std::function<bool(std::string_view)>> customValueCheckerOpt = std::nullopt;
     bool isValueSupported(std::string_view val) {
         if (customValueCheckerOpt.has_value()) {
@@ -385,7 +385,7 @@ struct OptionConcept final {
 };
 
 template <class Opt>
-std::shared_ptr<OptionValue> validateAndParse(std::string_view val) {
+std::shared_ptr<OptionValue> validateAndParse(const std::string_view& val) {
     using ValueType = typename Opt::ValueType;
 
     try {
@@ -422,34 +422,34 @@ public:
     template <class Opt>
     void add(std::optional<std::function<bool(std::string_view)>> customValueCheckerOpt = std::nullopt);
 
-    bool has(std::string_view key) const;
+    bool has(const std::string_view& key) const;
 
     void reset();
 
-    std::vector<std::string> getSupported(bool includePrivate = false) const;
+    std::vector<std::string_view> getSupported(bool includePrivate = false) const;
     std::vector<ov::PropertyName> getSupportedOptions(bool includePrivate = false) const;
     std::string getSupportedAsString(bool includePrivate = false) const;
 
-    details::OptionConcept get(std::string_view key, OptionMode mode = OptionMode::Both) const;
+    details::OptionConcept get(const std::string_view& key, OptionMode mode = OptionMode::Both) const;
     void walk(std::function<void(const details::OptionConcept&)> cb) const;
 
 private:
-    std::unordered_map<std::string, details::OptionConcept> _impl;
-    std::unordered_map<std::string, std::string> _deprecated;
+    std::unordered_map<std::string_view, details::OptionConcept> _impl;
+    std::unordered_map<std::string_view, std::string> _deprecated;
     Logger _log{Logger::global().clone("OptionsDesc")};
 };
 
 template <class Opt>
 void OptionsDesc::add(std::optional<std::function<bool(std::string_view)>> customValueCheckerOpt) {
-    OPENVINO_ASSERT(_impl.count(Opt::key().data()) == 0, "Option '", Opt::key().data(), "' was already registered");
-    _impl.insert({Opt::key().data(), details::makeOptionModel<Opt>(std::move(customValueCheckerOpt))});
+    OPENVINO_ASSERT(_impl.count(Opt::key()) == 0, "Option '", Opt::key().data(), "' was already registered");
+    _impl.insert({Opt::key(), details::makeOptionModel<Opt>(std::move(customValueCheckerOpt))});
 
     for (const auto& deprecatedKey : Opt::deprecatedKeys()) {
         OPENVINO_ASSERT(_deprecated.count(deprecatedKey.data()) == 0,
                         "Option '",
                         deprecatedKey.data(),
                         "' was already registered");
-        _deprecated.insert({deprecatedKey.data(), Opt::key().data()});
+        _deprecated.insert(std::make_pair(deprecatedKey, Opt::key()));
     }
 }
 
@@ -459,7 +459,7 @@ void OptionsDesc::add(std::optional<std::function<bool(std::string_view)>> custo
 
 class Config {
 public:
-    using ConfigMap = std::map<std::string, std::string>;
+    using ConfigMap = std::map<std::string_view, std::string_view>;
     using ImplMap = std::unordered_map<std::string_view, std::shared_ptr<details::OptionValue>>;
 
     explicit Config(const std::shared_ptr<const OptionsDesc>& desc);
@@ -471,7 +471,7 @@ public:
     template <class Opt>
     bool has() const;
 
-    bool has(std::string key) const;
+    bool has(const std::string_view& key) const;
 
     template <class Opt>
     typename Opt::ValueType get() const;
@@ -489,13 +489,14 @@ public:
 protected:
     std::shared_ptr<const OptionsDesc> _desc;
     ImplMap _impl;
+
 private:
     Logger _log{Logger::global().clone("Config")};
 };
 
 template <class Opt>
 bool Config::has() const {
-    return _impl.count(Opt::key().data()) != 0;
+    return _impl.count(Opt::key()) != 0;
 }
 
 template <class Opt>
@@ -504,7 +505,7 @@ typename Opt::ValueType Config::get() const {
 
     _log.trace("Get value for the option '%s'", Opt::key().data());
 
-    const auto it = _impl.find(Opt::key().data());
+    const auto it = _impl.find(Opt::key());
 
     if (it == _impl.end()) {
         const std::optional<ValueType> optional = Opt::defaultValue();

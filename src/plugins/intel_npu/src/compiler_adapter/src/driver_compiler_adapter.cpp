@@ -313,8 +313,10 @@ std::vector<std::string> DriverCompilerAdapter::get_supported_options() const {
     return compilerOpts;
 }
 
-bool DriverCompilerAdapter::is_option_supported(std::string optName, std::optional<std::string> optValue) const {
-    return _zeGraphExt->isOptionSupported(std::move(optName), std::move(optValue));
+bool DriverCompilerAdapter::is_option_supported(
+    const std::string_view& optName,
+    std::optional<std::reference_wrapper<const std::string_view>> optValue) const {
+    return _zeGraphExt->isOptionSupported(optName, std::move(optValue));
 }
 
 }  // namespace intel_npu

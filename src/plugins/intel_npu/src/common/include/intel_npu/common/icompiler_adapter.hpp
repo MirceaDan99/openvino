@@ -54,7 +54,9 @@ public:
                                       const FilteredConfig& config) const = 0;
     virtual uint32_t get_version() const = 0;
     virtual std::vector<std::string> get_supported_options() const = 0;
-    virtual bool is_option_supported(std::string optName, std::optional<std::string> optValue = std::nullopt) const = 0;
+    virtual bool is_option_supported(
+        const std::string_view& optName,
+        std::optional<std::reference_wrapper<const std::string_view>> optValue = std::nullopt) const = 0;
 
     virtual ~ICompilerAdapter() = default;
 };

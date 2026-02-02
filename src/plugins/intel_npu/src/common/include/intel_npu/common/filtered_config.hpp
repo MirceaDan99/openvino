@@ -21,7 +21,7 @@ namespace intel_npu {
 class FilteredConfig final : public Config {
 public:
     using EnableMap =
-        std::unordered_map<std::string, bool>;  ///< Map to track enabled/disabled state of configuration keys.
+        std::unordered_map<std::string_view, bool>;  ///< Map to track enabled/disabled state of configuration keys.
 
     /**
      * @brief Constructs a `FilteredConfig` object with a given options descriptor.
@@ -41,35 +41,35 @@ public:
      * @param key The key of the option to check.
      * @return True if the option exists, false otherwise.
      */
-    bool hasOpt(std::string_view key) const;
+    bool hasOpt(const std::string_view& key) const;
 
     /**
      * @brief Checks if a specific option is public (publishable in supported_properties).
      * @param key The key of the option to check.
      * @return True if the option is public, false otherwise.
      */
-    bool isOptPublic(std::string_view key) const;
+    bool isOptPublic(const std::string_view& key) const;
 
     /**
      * @brief Retrieves the OptionBase concept associated with a specific option. Used to check option details.
      * @param key The key of the option to retrieve.
      * @return The `OptionConcept` object representing the option's details.
      */
-    details::OptionConcept getOpt(std::string_view key) const;
+    details::OptionConcept getOpt(const std::string_view& key) const;
 
     /**
      * @brief Checks if a specific option is available (enabled and valid).
      * @param key The key of the option to check.
      * @return True if the option is available, false otherwise.
      */
-    bool isAvailable(std::string key) const;
+    bool isAvailable(const std::string_view& key) const;
 
     /**
      * @brief Enables or disables a specific configuration option.
      * @param key The key of the option to enable/disable.
      * @param enable True to enable the option, false to disable it.
      */
-    void enable(std::string key, bool enable);
+    void enable(const std::string_view& key, bool enable);
 
     /**
      * @brief Enables all available configuration options.
@@ -85,7 +85,7 @@ public:
      * @brief Iterates over all enabled options and applies a callback function to each enabled key.
      * @param cb A callback function that takes a string (key) as input and performs an operation on it.
      */
-    void walkEnables(std::function<void(const std::string&)> cb) const;
+    void walkEnables(std::function<void(const std::string_view&)> cb) const;
 
     /**
      * @brief Adds or updates an internal configuration value for compiler-specific needs.
@@ -99,7 +99,7 @@ public:
      * @param key The key of the internal configuration to retrieve.
      * @return The value associated with the specified internal configuration key.
      */
-    std::string getInternal(std::string key) const;
+    std::string_view getInternal(const std::string_view& key) const;
 
     /**
      * @brief Generates a string representation of all internal configurations for compiler use.
@@ -111,7 +111,7 @@ public:
      * @brief Iterates over all internal configurations and applies a callback function to each entry's key.
      * @param cb A callback function that takes a string (key) as input and performs an operation on it.
      */
-    void walkInternals(std::function<void(const std::string&)> cb) const;
+    void walkInternals(std::function<void(const std::string_view&)> cb) const;
 
     /**
      * @brief Generates a string representation of all config keys with set values
@@ -131,9 +131,12 @@ public:
     bool wasInitialized() const;
 
 private:
+    Logger _log = Logger::global().clone("FilteredConfig");
+
     EnableMap _enabled;  ///< Map to track whether specific configuration keys are enabled or disabled.
 
-    ConfigMap _internal_compiler_configs;  ///< Map to store internal (hidden) configurations used for compiler.
+    std::map<std::string_view, std::string>
+        _internal_compiler_configs;  ///< Map to store internal (hidden) configurations used for compiler.
 
     bool _initialized = false;  ///< Boolean to check whether config was filtered with compiler supported properties
 };

@@ -232,13 +232,14 @@ namespace intel_npu {
  *
  * @note This macro does not offer any compiled-model specific checks
  */
-#define REGISTER_SIMPLE_METRIC(PROP_NAME, PROP_VISIBILITY, PROP_RETVAL)                                      \
-    do {                                                                                                     \
-        _properties.emplace(                                                                                 \
-            PROP_NAME.name(),                                                                                \
-            std::make_tuple(PROP_VISIBILITY, ov::PropertyMutability::RO, [&](const Config& config) -> auto { \
-                return PROP_RETVAL;                                                                          \
-            }));                                                                                             \
+#define REGISTER_SIMPLE_METRIC(PROP_NAME, PROP_VISIBILITY, PROP_RETVAL)                          \
+    do {                                                                                         \
+        _properties.emplace(PROP_NAME.name(),                                                    \
+                            std::make_tuple(PROP_VISIBILITY,                                     \
+                                            ov::PropertyMutability::RO,                          \
+                                            [&]([[maybe_unused]] const Config& config) -> auto { \
+                                                return PROP_RETVAL;                              \
+                                            }));                                                 \
     } while (0)
 
 /**
@@ -574,7 +575,7 @@ void Properties::registerPluginProperties() {
             auto dummyCompiler = CompilerAdapterFactory::getInstance().getCompiler(_backend, compilerType);
             return dummyCompiler->get_version();
         });
-        REGISTER_CUSTOM_METRIC(ov::internal::caching_properties, false, [&](const Config& config) {
+        REGISTER_CUSTOM_METRIC(ov::internal::caching_properties, false, [&](const Config& /* unusedConfig */) {
             // return a dynamically created list based on what is supported in current configuration
             std::vector<ov::PropertyName> caching_props{};
             // walk the static caching properties, add only what is supported now
@@ -688,9 +689,12 @@ void Properties::registerCompiledModelProperties() {
 }
 
 ov::Any Properties::get_property(const std::string& name, const ov::AnyMap& arguments) const {
-    std::map<std::string, std::string> amends;
+    std::map<std::string_view, std::string_view> amends;
     for (auto&& value : arguments) {
-        amends.emplace(value.first, value.second.as<std::string>());
+        amends.emplace(
+            value.first.c_str(),
+            value.second.as<std::string>()
+                .c_str());  // no dangling pointer until next call of ov::Any::as<...> (its _temp will change)
     }
     FilteredConfig amendedConfig = _config;
     try {
@@ -712,7 +716,7 @@ ov::Any Properties::get_property(const std::string& name, const ov::AnyMap& argu
 }
 
 void Properties::set_property(const ov::AnyMap& properties) {
-    std::map<std::string, std::string> cfgs_to_set;
+    std::map<std::string_view, std::string_view> cfgs_to_set;
 
     for (auto&& value : properties) {
         if (_properties.find(value.first) == _properties.end()) {
@@ -744,7 +748,10 @@ void Properties::set_property(const ov::AnyMap& properties) {
             if (std::get<1>(_properties[value.first]) == ov::PropertyMutability::RO) {
                 OPENVINO_THROW("READ-ONLY configuration key: ", value.first);
             } else {
-                cfgs_to_set.emplace(value.first, value.second.as<std::string>());
+                cfgs_to_set.emplace(
+                    value.first.data(),
+                    value.second.as<std::string>()
+                        .data());  // no dangling pointer until next call of ov::Any::as<...> (its _temp will change)
             }
         }
     }

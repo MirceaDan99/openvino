@@ -128,7 +128,7 @@ struct vcl_allocator_vector : vcl_allocator2_t {
         return vecAllocator->m_vec->data();
     }
 
-    static void vector_deallocate(vcl_allocator2_t* allocator, uint8_t* ptr) {
+    static void vector_deallocate(vcl_allocator2_t* allocator, uint8_t* /* unused_ptr */) {
         vcl_allocator_vector* vecAllocator = static_cast<vcl_allocator_vector*>(allocator);
         vecAllocator->m_vec->clear();
         vecAllocator->m_vec->shrink_to_fit();
@@ -587,14 +587,16 @@ NetworkDescription VCLCompilerImpl::compileWsIterative(const std::shared_ptr<ov:
     return compile(model, updatedConfig, true);
 }
 
-intel_npu::NetworkMetadata VCLCompilerImpl::parse(const std::vector<uint8_t>& network, const Config& config) const {
+intel_npu::NetworkMetadata VCLCompilerImpl::parse(const std::vector<uint8_t>& /* unusedNetwork */,
+                                                  const Config& /* unusedConfig */) const {
     // VCL returns empty metadata. In plugin adapter, use driver metadata instead.
     OPENVINO_THROW_NOT_IMPLEMENTED("VCL does not support parse.");
 }
 
-std::vector<ov::ProfilingInfo> VCLCompilerImpl::process_profiling_output(const std::vector<uint8_t>& profData,
-                                                                         const std::vector<uint8_t>& network,
-                                                                         const intel_npu::Config& config) const {
+std::vector<ov::ProfilingInfo> VCLCompilerImpl::process_profiling_output(
+    const std::vector<uint8_t>& profData,
+    const std::vector<uint8_t>& network,
+    const intel_npu::Config& /* unusedConfig */) const {
     _logger.debug("process_profiling_output start");
 
     vcl_profiling_handle_t profilingHandle;
@@ -731,10 +733,12 @@ bool VCLCompilerImpl::get_supported_options(std::vector<char>& options) const {
     return false;
 }
 
-bool VCLCompilerImpl::is_option_supported(const std::string& option, std::optional<std::string> optValue) const {
+bool VCLCompilerImpl::is_option_supported(
+    const std::string_view& option,
+    std::optional<std::reference_wrapper<const std::string_view>> optValue) const {
     try {
-        const char* optname_ch = option.c_str();
-        const char* optvalue_ch = optValue.has_value() ? optValue.value().c_str() : nullptr;
+        const char* optname_ch = option.data();
+        const char* optvalue_ch = optValue.has_value() ? optValue.value().get().data() : nullptr;
         _logger.debug("is_option_supported start for option: %s, value: %s",
                       optname_ch,
                       optValue ? optvalue_ch : "null");
@@ -746,7 +750,7 @@ bool VCLCompilerImpl::is_option_supported(const std::string& option, std::option
         // The API is only supported in new version, just add log here
         _logger.debug("Exception in is_option_supported: %s", e.what());
     }
-    _logger.debug("option: %s is not supported", option.c_str());
+    _logger.debug("Option: %s is not supported", option.data());
     return false;
 }
 

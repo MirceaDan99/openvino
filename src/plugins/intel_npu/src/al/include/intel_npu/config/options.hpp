@@ -43,7 +43,7 @@ struct PERFORMANCE_HINT final : OptionBase<PERFORMANCE_HINT, ov::hint::Performan
         return OptionMode::CompileTime;
     }
 
-    static ov::hint::PerformanceMode parse(std::string_view val) {
+    static ov::hint::PerformanceMode parse(const std::string_view& val) {
         if (val.empty()) {
             return ov::hint::PerformanceMode::LATENCY;
         } else if (val == "LATENCY") {
@@ -89,7 +89,7 @@ struct PERFORMANCE_HINT_NUM_REQUESTS final : OptionBase<PERFORMANCE_HINT_NUM_REQ
      * @param configuration value as string
      * @return configuration value as number
      */
-    static uint32_t parse(std::string_view val) {
+    static uint32_t parse(const std::string_view& val) {
         int val_i = -1;
         try {
             val_i = std::stoi(val.data());
@@ -158,7 +158,7 @@ struct INFERENCE_PRECISION_HINT final : OptionBase<INFERENCE_PRECISION_HINT, ov:
         return OptionMode::CompileTime;
     }
 
-    static ov::element::Type parse(std::string_view val) {
+    static ov::element::Type parse(const std::string_view& val) {
         if (val.empty() || (val == "f16")) {
             return ov::element::f16;
         } else if (val == "i8") {
@@ -338,7 +338,7 @@ struct CACHE_MODE final : OptionBase<CACHE_MODE, ov::CacheMode> {
         return OptionMode::CompileTime;
     }
 
-    static ov::CacheMode parse(std::string_view val) {
+    static ov::CacheMode parse(const std::string_view& val) {
         std::istringstream stringStream = std::istringstream(std::string(val));
         ov::CacheMode cacheMode;
         stringStream >> cacheMode;
@@ -373,7 +373,7 @@ struct COMPILED_BLOB final : OptionBase<COMPILED_BLOB, ov::Tensor> {
         return OptionMode::RunTime;
     }
 
-    static ov::Tensor parse(std::string_view) {
+    static ov::Tensor parse(const std::string_view&) {
         // Cannot/shouldn't parse this due to conversion and ownership reasons. The config option is added only to
         // comply with the OV API without inserting multiple workarounds.
         return defaultValue();
@@ -446,7 +446,7 @@ struct BATCH_MODE final : OptionBase<BATCH_MODE, ov::intel_npu::BatchMode> {
         return OptionMode::CompileTime;
     }
 
-    static ov::intel_npu::BatchMode parse(std::string_view val) {
+    static ov::intel_npu::BatchMode parse(const std::string_view& val) {
         if (val == "AUTO") {
             return ov::intel_npu::BatchMode::AUTO;
         } else if (val == "COMPILER") {
@@ -506,7 +506,7 @@ struct PROFILING_TYPE final : OptionBase<PROFILING_TYPE, ov::intel_npu::Profilin
         return ov::intel_npu::ProfilingType::MODEL;
     }
 
-    static ov::intel_npu::ProfilingType parse(std::string_view val) {
+    static ov::intel_npu::ProfilingType parse(const std::string_view& val) {
         if (val == "MODEL") {
             return ov::intel_npu::ProfilingType::MODEL;
         } else if (val == "INFER") {
@@ -555,7 +555,7 @@ struct MODEL_PRIORITY final : OptionBase<MODEL_PRIORITY, ov::hint::Priority> {
         return ov::hint::Priority::MEDIUM;
     }
 
-    static ov::hint::Priority parse(std::string_view val) {
+    static ov::hint::Priority parse(const std::string_view& val) {
         std::istringstream stringStream = std::istringstream(std::string(val));
         ov::hint::Priority priority;
 
@@ -677,7 +677,7 @@ struct NUM_STREAMS final : OptionBase<NUM_STREAMS, ov::streams::Num> {
         return ov::streams::Num(1);
     }
 
-    static ov::streams::Num parse(std::string_view val) {
+    static ov::streams::Num parse(const std::string_view& val) {
         std::istringstream stringStream = std::istringstream(std::string(val));
         ov::streams::Num numberOfStreams;
 
@@ -760,7 +760,7 @@ struct WORKLOAD_TYPE final : OptionBase<WORKLOAD_TYPE, ov::WorkloadType> {
         return ov::PropertyMutability::RW;
     }
 
-    static ov::WorkloadType parse(std::string_view val) {
+    static ov::WorkloadType parse(const std::string_view& val) {
         std::istringstream ss = std::istringstream(std::string(val));
         ov::WorkloadType workloadType;
 
@@ -823,7 +823,7 @@ struct COMPILER_TYPE final : OptionBase<COMPILER_TYPE, ov::intel_npu::CompilerTy
         return ov::intel_npu::CompilerType::PREFER_PLUGIN;
     }
 
-    static ov::intel_npu::CompilerType parse(std::string_view val) {
+    static ov::intel_npu::CompilerType parse(const std::string_view& val) {
         if (val == "PLUGIN") {
             return ov::intel_npu::CompilerType::PLUGIN;
         } else if (val == "DRIVER") {
@@ -1386,7 +1386,7 @@ struct SEPARATE_WEIGHTS_VERSION final : OptionBase<SEPARATE_WEIGHTS_VERSION, ov:
         return ov::intel_npu::WSVersion::ITERATIVE;
     }
 
-    static ov::intel_npu::WSVersion parse(std::string_view val) {
+    static ov::intel_npu::WSVersion parse(const std::string_view& val) {
         std::istringstream stringStream = std::istringstream(std::string(val));
         ov::intel_npu::WSVersion wsVersion;
         stringStream >> wsVersion;
@@ -1413,7 +1413,7 @@ struct WS_COMPILE_CALL_NUMBER final : OptionBase<WS_COMPILE_CALL_NUMBER, uint32_
         return 0;
     }
 
-    static uint32_t parse(std::string_view val) {
+    static uint32_t parse(const std::string_view& val) {
         int val_i = -1;
         try {
             val_i = std::stoi(val.data());
@@ -1463,7 +1463,7 @@ struct MODEL_SERIALIZER_VERSION final : OptionBase<MODEL_SERIALIZER_VERSION, ov:
         return ov::intel_npu::ModelSerializerVersion::AUTO;
     }
 
-    static ov::intel_npu::ModelSerializerVersion parse(std::string_view val) {
+    static ov::intel_npu::ModelSerializerVersion parse(const std::string_view& val) {
         std::istringstream stringStream = std::istringstream(std::string(val));
         ov::intel_npu::ModelSerializerVersion version;
         stringStream >> version;

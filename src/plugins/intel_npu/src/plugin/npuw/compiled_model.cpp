@@ -52,10 +52,13 @@ void split_properties(const ov::AnyMap& properties,
     }
 }
 
-std::map<std::string, std::string> any_copy(const ov::AnyMap& params) {
-    std::map<std::string, std::string> result;
+std::map<std::string_view, std::string_view> any_copy(const ov::AnyMap& params) {
+    std::map<std::string_view, std::string_view> result;
     for (auto&& value : params) {
-        result.emplace(value.first, value.second.as<std::string>());
+        result.emplace(
+            value.first,
+            value.second.as<std::string>()
+                .c_str());  // no dangling pointer until next call of ov::Any::as<...> (its _temp will change)
     }
     return result;
 }

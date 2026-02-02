@@ -32,7 +32,7 @@ void splitAndApply(const std::string& str, char delim, std::function<void(std::s
 // OptionParser
 //
 
-bool OptionParser<bool>::parse(std::string_view val) {
+bool OptionParser<bool>::parse(const std::string_view& val) {
     std::string strVal(val);
     std::transform(strVal.begin(), strVal.end(), strVal.begin(), [](char c) {
         return std::toupper(c);
@@ -46,7 +46,7 @@ bool OptionParser<bool>::parse(std::string_view val) {
     OPENVINO_THROW("Value '", val.data(), "' is not a valid BOOL option");
 }
 
-int32_t OptionParser<int32_t>::parse(std::string_view val) {
+int32_t OptionParser<int32_t>::parse(const std::string_view& val) {
     try {
         return std::stol(val.data());
     } catch (...) {
@@ -54,7 +54,7 @@ int32_t OptionParser<int32_t>::parse(std::string_view val) {
     }
 }
 
-uint32_t OptionParser<uint32_t>::parse(std::string_view val) {
+uint32_t OptionParser<uint32_t>::parse(const std::string_view& val) {
     try {
         return std::stoul(val.data());
     } catch (...) {
@@ -62,7 +62,7 @@ uint32_t OptionParser<uint32_t>::parse(std::string_view val) {
     }
 }
 
-int64_t OptionParser<int64_t>::parse(std::string_view val) {
+int64_t OptionParser<int64_t>::parse(const std::string_view& val) {
     try {
         return std::stoll(val.data());
     } catch (...) {
@@ -70,7 +70,7 @@ int64_t OptionParser<int64_t>::parse(std::string_view val) {
     }
 }
 
-uint64_t OptionParser<uint64_t>::parse(std::string_view val) {
+uint64_t OptionParser<uint64_t>::parse(const std::string_view& val) {
     try {
         return std::stoull(val.data());
     } catch (...) {
@@ -78,7 +78,7 @@ uint64_t OptionParser<uint64_t>::parse(std::string_view val) {
     }
 }
 
-double OptionParser<double>::parse(std::string_view val) {
+double OptionParser<double>::parse(const std::string_view& val) {
     try {
         return std::stod(val.data());
     } catch (...) {
@@ -86,7 +86,7 @@ double OptionParser<double>::parse(std::string_view val) {
     }
 }
 
-ov::log::Level OptionParser<ov::log::Level>::parse(std::string_view val) {
+ov::log::Level OptionParser<ov::log::Level>::parse(const std::string_view& val) {
     std::string strVal(val);
     std::istringstream is(strVal);
     ov::log::Level level;
@@ -94,7 +94,7 @@ ov::log::Level OptionParser<ov::log::Level>::parse(std::string_view val) {
     return level;
 }
 
-ov::hint::ExecutionMode OptionParser<ov::hint::ExecutionMode>::parse(std::string_view val) {
+ov::hint::ExecutionMode OptionParser<ov::hint::ExecutionMode>::parse(const std::string_view& val) {
     std::string strVal(val);
     std::istringstream is(strVal);
     ov::hint::ExecutionMode mode;
@@ -149,12 +149,12 @@ details::OptionValue::~OptionValue() = default;
 // OptionsDesc
 //
 
-details::OptionConcept OptionsDesc::get(std::string_view key, OptionMode mode) const {
-    std::string searchKey{key};
-    const auto itDeprecated = _deprecated.find(std::string(key));
+details::OptionConcept OptionsDesc::get(const std::string_view& key, OptionMode mode) const {
+    std::string_view searchKey{key};
+    const auto itDeprecated = _deprecated.find(key);
     if (itDeprecated != _deprecated.end()) {
         searchKey = itDeprecated->second;
-        _log.warning("Deprecated option '%s' was used, '%s' should be used instead", key.data(), searchKey.c_str());
+        _log.warning("Deprecated option '%s' was used, '%s' should be used instead", key.data(), searchKey.data());
     }
 
     const auto itMain = _impl.find(searchKey);
@@ -168,9 +168,9 @@ details::OptionConcept OptionsDesc::get(std::string_view key, OptionMode mode) c
     if (mode == OptionMode::RunTime) {
         if (desc.mode() == OptionMode::CompileTime) {
             _log.warning("%s option '%s' was used in %s mode",
-                        stringifyEnum(desc.mode()).data(),
-                        key.data(),
-                        stringifyEnum(mode).data());
+                         stringifyEnum(desc.mode()).data(),
+                         key.data(),
+                         stringifyEnum(mode).data());
         }
     }
 
@@ -181,26 +181,25 @@ void OptionsDesc::reset() {
     _impl.clear();
 }
 
-bool OptionsDesc::has(std::string_view key) const {
-    std::string searchKey{key};
-    const auto itDeprecated = _deprecated.find(searchKey);
+bool OptionsDesc::has(const std::string_view& key) const {
+    const auto itDeprecated = _deprecated.find(key);
     if (itDeprecated != _deprecated.end()) {
         return true;
     }
-    const auto itMain = _impl.find(searchKey);
+    const auto itMain = _impl.find(key);
     if (itMain != _impl.end()) {
         return true;
     }
     return false;
 }
 
-std::vector<std::string> OptionsDesc::getSupported(bool includePrivate) const {
-    std::vector<std::string> res;
+std::vector<std::string_view> OptionsDesc::getSupported(bool includePrivate) const {
+    std::vector<std::string_view> res;
     res.reserve(_impl.size());
 
     for (const auto& p : _impl) {
         if (p.second.isPublic() || includePrivate) {
-            res.push_back(p.first.data());
+            res.push_back(p.first);
         }
     }
 
@@ -252,26 +251,26 @@ void Config::parseEnvVars() {
         if (!opt.envVar().empty()) {
             if (const auto envVar = std::getenv(opt.envVar().data())) {
                 _log.trace("Update option '%s' to value '%s' parsed from environment variable '%s'",
-                          opt.key().data(),
-                          envVar,
-                          opt.envVar().data());
+                           opt.key().data(),
+                           envVar,
+                           opt.envVar().data());
 
-                _impl[opt.key().data()] = opt.validateAndParse(envVar);
+                _impl[opt.key()] = opt.validateAndParse(envVar);
             }
         }
     });
 }
 
-bool Config::has(std::string key) const {
+bool Config::has(const std::string_view& key) const {
     return _impl.count(key) != 0;
 }
 
 void Config::update(const ConfigMap& options, OptionMode mode) {
     for (const auto& p : options) {
-        _log.trace("Update option '%s' to value '%s'", p.first.c_str(), p.second.c_str());
+        _log.trace("Update option '%s' to value '%s'", p.first.data(), p.second.data());
 
         const auto opt = _desc->get(p.first, mode);
-        _impl[opt.key().data()] = opt.validateAndParse(p.second);
+        _impl[opt.key()] = opt.validateAndParse(p.second);
     }
 }
 
@@ -291,14 +290,13 @@ std::string Config::toString() const {
 }
 
 void Config::fromString(const std::string& str) {
-    std::map<std::string, std::string> config;
     std::string str_cfg(str);
 
-    auto parse_token = [&](const std::string& token) {
+    auto parse_token = [&](const std::string_view& token) {
         auto pos_eq = token.find('=');
         auto key = token.substr(0, pos_eq);
         auto value = token.substr(pos_eq + 2, token.size() - pos_eq - 3);
-        config[key] = std::move(value);
+        update(std::map<std::string_view, std::string_view>{{key, value}});
     };
 
     size_t pos = 0;
@@ -311,8 +309,6 @@ void Config::fromString(const std::string& str) {
 
     // Process tail
     parse_token(str_cfg);
-
-    update(config);
 }
 
 //

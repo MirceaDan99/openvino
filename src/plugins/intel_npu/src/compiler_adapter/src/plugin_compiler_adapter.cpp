@@ -390,7 +390,9 @@ std::vector<std::string> PluginCompilerAdapter::get_supported_options() const {
     return compilerOpts;
 }
 
-bool PluginCompilerAdapter::is_option_supported(std::string optname, std::optional<std::string> optValue) const {
+bool PluginCompilerAdapter::is_option_supported(
+    const std::string_view& optName,
+    std::optional<std::reference_wrapper<const std::string_view>> optValue) const {
     VCLCompilerImpl* vclCompiler = dynamic_cast<VCLCompilerImpl*>(_compiler.operator->());
     if (vclCompiler == nullptr) {
         // If _compiler  cannot be cast to VCLCompilerImpl, it should use the mlir library.
@@ -400,15 +402,15 @@ bool PluginCompilerAdapter::is_option_supported(std::string optname, std::option
         return false;
     }
 
-    const char* optvalue_ch = optValue.has_value() ? optValue.value().c_str() : nullptr;
-    if (vclCompiler->is_option_supported(optname, optValue)) {
+    const char* optvalue_ch = optValue.has_value() ? optValue.value().get().data() : nullptr;
+    if (vclCompiler->is_option_supported(optName, optValue)) {
         _logger.debug("Option %s is supported `%s` by VCLCompilerImpl",
-                      optname.c_str(),
+                      optName.data(),
                       optvalue_ch ? optvalue_ch : "null");
         return true;
     } else {
         _logger.debug("Option %s is not supported `%s` by VCLCompilerImpl",
-                      optname.c_str(),
+                      optName.data(),
                       optvalue_ch ? optvalue_ch : "null");
         return false;
     }

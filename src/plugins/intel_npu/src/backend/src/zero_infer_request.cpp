@@ -7,6 +7,7 @@
 #include "intel_npu/common/itt.hpp"
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/prefix.hpp"
+#include "intel_npu/utils/profiler/function_measurement.hpp"
 #include "intel_npu/utils/utils.hpp"
 #include "intel_npu/utils/zero/zero_api.hpp"
 #include "intel_npu/utils/zero/zero_utils.hpp"
@@ -14,8 +15,6 @@
 #include "openvino/runtime/intel_npu/remote_properties.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 #include "zero_variable_state.hpp"
-
-#include "intel_npu/utils/profiler/function_measurement.hpp"
 
 using namespace intel_npu;
 
@@ -273,7 +272,8 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
 
     std::chrono::high_resolution_clock::time_point checkpoint_make_zero_tensor;
 
-    std::chrono::high_resolution_clock::time_point checkpoint_update_graph_arguments = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point checkpoint_update_graph_arguments =
+        std::chrono::high_resolution_clock::now();
 
     auto checkpoint_start_set_tensor = std::chrono::high_resolution_clock::now();
 
@@ -450,11 +450,21 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
     static double diff_make_zero_tensor = .0;
     static double diff_update_graph_arguments = .0;
     static const size_t num_iters = 29 * 10000;
-    diff_find_port += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_find_port - checkpoint_start_set_tensor).count();
-    diff_check_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_check_tensor - checkpoint_after_find_port).count();
-    diff_after_batch_size_logic += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_batch_logic - checkpoint_after_check_tensor).count();
-    diff_make_zero_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_make_zero_tensor - checkpoint_after_batch_logic).count();
-    diff_update_graph_arguments += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_update_graph_arguments - checkpoint_make_zero_tensor).count();
+    diff_find_port +=
+        std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_find_port - checkpoint_start_set_tensor)
+            .count();
+    diff_check_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_check_tensor -
+                                                                               checkpoint_after_find_port)
+                             .count();
+    diff_after_batch_size_logic += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_after_batch_logic -
+                                                                                         checkpoint_after_check_tensor)
+                                       .count();
+    diff_make_zero_tensor += std::chrono::duration_cast<std::chrono::microseconds>(checkpoint_make_zero_tensor -
+                                                                                   checkpoint_after_batch_logic)
+                                 .count();
+    diff_update_graph_arguments += std::chrono::duration_cast<std::chrono::microseconds>(
+                                       checkpoint_update_graph_arguments - checkpoint_make_zero_tensor)
+                                       .count();
 
     iteration_counter++;
     if (iteration_counter == num_iters) {
@@ -464,15 +474,21 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
         diff_make_zero_tensor /= num_iters;
         diff_update_graph_arguments /= num_iters;
 
-        double total_sum_diffs = diff_find_port + diff_check_tensor +
-            diff_after_batch_size_logic + diff_make_zero_tensor + diff_update_graph_arguments;
+        double total_sum_diffs = diff_find_port + diff_check_tensor + diff_after_batch_size_logic +
+                                 diff_make_zero_tensor + diff_update_graph_arguments;
 
-        std::cout << "ZeroInferRequest::set_tensor::diff_find_port = " << std::fixed << diff_find_port / 1000.0 << " ms" << std::endl;
-        std::cout << "ZeroInferRequest::set_tensor::diff_check_tensor = " << std::fixed << diff_check_tensor / 1000.0 << " ms" << std::endl;
-        std::cout << "ZeroInferRequest::set_tensor::diff_after_batch_size_logic = " << std::fixed << diff_after_batch_size_logic / 1000.0 << " ms" << std::endl;
-        std::cout << "ZeroInferRequest::set_tensor::diff_make_zero_tensor = " << std::fixed << diff_make_zero_tensor / 1000.0 << " ms" << std::endl;
-        std::cout << "ZeroInferRequest::set_tensor::diff_update_graph_arguments = " << std::fixed << diff_update_graph_arguments / 1000.0 << " ms" << std::endl;
-        std::cout << "ZeroInferRequest::set_tensor::total_sum_diffs = " << std::fixed << total_sum_diffs / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::diff_find_port = " << std::fixed << diff_find_port / 1000.0 << " ms"
+                  << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::diff_check_tensor = " << std::fixed << diff_check_tensor / 1000.0
+                  << " ms" << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::diff_after_batch_size_logic = " << std::fixed
+                  << diff_after_batch_size_logic / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::diff_make_zero_tensor = " << std::fixed
+                  << diff_make_zero_tensor / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::diff_update_graph_arguments = " << std::fixed
+                  << diff_update_graph_arguments / 1000.0 << " ms" << std::endl;
+        std::cout << "ZeroInferRequest::set_tensor::total_sum_diffs = " << std::fixed << total_sum_diffs / 1000.0
+                  << " ms" << std::endl;
 
         /*
             ZeroInferRequest::set_tensor::diff_find_port = 0.000025 ms
@@ -492,29 +508,28 @@ void ZeroInferRequest::set_tensor(const ov::Output<const ov::Node>& port, const 
             ZeroInferRequest::set_tensor::total_sum_diffs = 0.002703 ms
         */
 
-       /*
-            ZeroMemPool::import_standard_allocation_memory::diff_get_l0_context_memory_allocation_id = 0.000562 ms
-            ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem = 0.000048 ms
-            ZeroInferRequest::set_tensor::diff_find_port = 0.000029 ms
-            ZeroInferRequest::set_tensor::diff_check_tensor = 0.000131 ms
-            ZeroInferRequest::set_tensor::diff_after_batch_size_logic = 0.000061 ms
-            ZeroInferRequest::set_tensor::diff_make_zero_tensor = 0.001682 ms
-            ZeroInferRequest::set_tensor::diff_update_graph_arguments = 0.000649 ms
-            ZeroInferRequest::set_tensor::total_sum_diffs = 0.002552 ms
-       */
+        /*
+             ZeroMemPool::import_standard_allocation_memory::diff_get_l0_context_memory_allocation_id = 0.000562 ms
+             ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem = 0.000048 ms
+             ZeroInferRequest::set_tensor::diff_find_port = 0.000029 ms
+             ZeroInferRequest::set_tensor::diff_check_tensor = 0.000131 ms
+             ZeroInferRequest::set_tensor::diff_after_batch_size_logic = 0.000061 ms
+             ZeroInferRequest::set_tensor::diff_make_zero_tensor = 0.001682 ms
+             ZeroInferRequest::set_tensor::diff_update_graph_arguments = 0.000649 ms
+             ZeroInferRequest::set_tensor::total_sum_diffs = 0.002552 ms
+        */
 
-       /*
-            ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem = 0.000124 ms
-            ZeroTensor::ZeroTensor::diff_import_standard_allocation = 0.001194 ms
-            ZeroTensor::ZeroTensor::total_zero_tensor_ctor = 0.001318 ms
-            ZeroInferRequest::set_tensor::diff_find_port = 0.000055 ms
-            ZeroInferRequest::set_tensor::diff_check_tensor = 0.000206 ms
-            ZeroInferRequest::set_tensor::diff_after_batch_size_logic = 0.000131 ms
-            ZeroInferRequest::set_tensor::diff_make_zero_tensor = 0.002165 ms
-            ZeroInferRequest::set_tensor::diff_update_graph_arguments = 0.001156 ms
-            ZeroInferRequest::set_tensor::total_sum_diffs = 0.003713 ms
-       */
-
+        /*
+             ZeroTensor::ZeroTensor::diff_zero_tensor_ctor_without_import_mem = 0.000124 ms
+             ZeroTensor::ZeroTensor::diff_import_standard_allocation = 0.001194 ms
+             ZeroTensor::ZeroTensor::total_zero_tensor_ctor = 0.001318 ms
+             ZeroInferRequest::set_tensor::diff_find_port = 0.000055 ms
+             ZeroInferRequest::set_tensor::diff_check_tensor = 0.000206 ms
+             ZeroInferRequest::set_tensor::diff_after_batch_size_logic = 0.000131 ms
+             ZeroInferRequest::set_tensor::diff_make_zero_tensor = 0.002165 ms
+             ZeroInferRequest::set_tensor::diff_update_graph_arguments = 0.001156 ms
+             ZeroInferRequest::set_tensor::total_sum_diffs = 0.003713 ms
+        */
     }
 
     // return; /* Total time: 161.998 ms, Avg time:   0.055 ms, set_tensor/infer ratio: 18.372% */
@@ -571,6 +586,9 @@ void ZeroInferRequest::set_tensors(const ov::Output<const ov::Node>& port,
     if (_initStructs->getMutableCommandListExtVersion() >= ZE_MAKE_VERSION(1, 0) && batchSizeCandidate.has_value()) {
         get_level_zero_inputs(foundPort.idx).resize(tensors.size());
 
+        std::vector<std::pair<ze_mutable_graph_argument_exp_desc_t, std::optional<ze_graph_argument_value_strides_t>>>
+            descs(tensors.size(), std::make_pair(ze_mutable_graph_argument_exp_desc_t{}, std::nullopt));
+
         for (size_t i = 0; i < tensors.size(); i++) {
             try {
                 _logger.debug("ZeroInferRequest::set_tensors - create zero tensor");
@@ -587,14 +605,17 @@ void ZeroInferRequest::set_tensors(const ov::Output<const ov::Node>& port,
                 OV_ITT_TASK_NEXT(ZERO_SET_TENSORS, "allocate tensor");
                 get_level_zero_input(foundPort.idx, i) = allocate_tensor(foundPort.idx, INPUT, batchSizeCandidate);
             }
-
             if (_pipelineIsCreated && !_dynamicBatchValueChanged) {
                 OPENVINO_ASSERT(get_level_zero_input(foundPort.idx, i)->data(), "Empty buffer");
                 OV_ITT_TASK_NEXT(ZERO_SET_TENSORS, "updateCommandList");
                 _pipeline->update_graph_arguments(_metadata.inputs.at(foundPort.idx).indexUsedByDriver,
                                                   get_level_zero_input(foundPort.idx, i),
-                                                  i);
+                                                  i,
+                                                  descs);
             }
+        }
+        if (_pipelineIsCreated && !_dynamicBatchValueChanged) {
+            _pipeline->submit_update_graph_arguments();
         }
     }
     // If command list updates are not supported, fallback to copying tensors every time.

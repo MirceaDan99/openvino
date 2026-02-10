@@ -4,24 +4,13 @@
 
 set(TARGET_NAME "ov_npu_unit_tests")
 
-set(MANDATORY_UNIT_TESTS_LIBS
-        "openvino::commonTestUtils"
-        "openvino::gmock"
-        "openvino::gtest"
-        "openvino::gtest_main"
-        "openvino::runtime"
-        "openvino::reference"
-        "openvino::npu_al"
-        "openvino::npu_logger_utils"
-)
-
 ov_add_test_target(
         NAME ${TARGET_NAME}
         ROOT ${CMAKE_CURRENT_SOURCE_DIR}
         ADDITIONAL_SOURCE_DIRS
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/npuw/partitioning
-        DEPENDENCIES
-            openvino::runtime
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/backend/src
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/utils/src
         INCLUDES
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/npuw
@@ -30,7 +19,17 @@ ov_add_test_target(
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/utils/include
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/include
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/al/include
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/backend/include
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/common/include
+            ${OpenVINO_SOURCE_DIR}/src/inference/src
+            $<TARGET_PROPERTY:openvino_npu_zero_utils,INCLUDE_DIRECTORIES>
         OBJECT_FILES
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/al/src/config/npuw.cpp
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/al/src/config/config.cpp
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/common/src/npu.cpp
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/common/src/sync_infer_request.cpp
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/src/async_infer_request.cpp
+            ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/src/remote_context.cpp
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/src/metadata.cpp
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/npuw/llm_compiled_model_utils.cpp
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/npuw/logging.cpp
@@ -48,9 +47,12 @@ ov_add_test_target(
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/npuw/moe_transformations/device_routed_moe_transform.cpp
             ${OpenVINO_SOURCE_DIR}/src/plugins/intel_npu/src/plugin/npuw/moe_transformations/gather_to_2d_gather.cpp
         LINK_LIBRARIES
-            ${MANDATORY_UNIT_TESTS_LIBS}
+            common_test_utils_s
+            openvino::reference
+        DEPENDENCIES
+            openvino_intel_npu_plugin
         LABELS
-            NPUW
+            OV UNIT NPU NPUW
 )
 
 if(ENABLE_AVX2)

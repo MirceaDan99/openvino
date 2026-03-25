@@ -64,11 +64,8 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compile(const std::shared_ptr<con
     OV_ITT_TASK_CHAIN(COMPILE_BLOB, itt::domains::NPUPlugin, "PluginCompilerAdapter", "compile");
 
     _logger.debug("compile start");
-    auto networkDesc = _compiler->compile(model, config);
+    auto tensor = _compiler->compile(model, config);
     _logger.debug("compile end");
-
-    ov::Tensor tensor;
-    tensor = std::move(networkDesc.compiledNetworkTensor);
 
     if (config.get<COMPILATION_MODE>() == "HostCompile") {
         // metadata will be obtained in initialze() of DynamicGraph
@@ -133,15 +130,11 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(std::shared_ptr<ov::Mod
 
     switch (localConfig.get<SEPARATE_WEIGHTS_VERSION>()) {
     case ov::intel_npu::WSVersion::ONE_SHOT: {
-        std::vector<std::shared_ptr<NetworkDescription>> initMainNetworkDescriptions =
-            _compiler->compileWsOneShot(model, localConfig);
-
-        std::shared_ptr<NetworkDescription> mainNetworkDescription = initMainNetworkDescriptions.back();
-        initMainNetworkDescriptions.pop_back();
-        OPENVINO_ASSERT(initMainNetworkDescriptions.size() > 0, "No init schedules have been returned by the compiler");
-        std::vector<std::shared_ptr<NetworkDescription>> initNetworkDescriptions =
-            std::move(initMainNetworkDescriptions);
-        tensorMain = std::move(mainNetworkDescription->compiledNetworkTensor);
+        std::vector<ov::Tensor> initMainTensors = _compiler->compileWsOneShot(model, localConfig);
+        tensorMain = initMainTensors.back();
+        initMainTensors.pop_back();
+        OPENVINO_ASSERT(initMainTensors.size() > 0, "No init schedules have been returned by the compiler");
+        tensorsInits = std::move(initMainTensors);
 
         if (_zeGraphExt) {
             // Depending on the config, we may get an error when trying to
@@ -159,13 +152,9 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(std::shared_ptr<ov::Mod
                 "No driver is found, zeGraphExt is nullptr, so metadata is empty. Only exports are available");
         }
 
-        initGraphDescriptors.reserve(initNetworkDescriptions.size());
-        tensorsInits.reserve(initNetworkDescriptions.size());
-        initNetworkMetadata.reserve(initNetworkDescriptions.size());
-        for (auto& networkDesc : initNetworkDescriptions) {
-            ov::Tensor tensor;
-            tensor = std::move(networkDesc->compiledNetworkTensor);
-
+        initGraphDescriptors.reserve(tensorsInits.size());
+        initNetworkMetadata.reserve(tensorsInits.size());
+        for (const auto& tensor : tensorsInits) {
             GraphDescriptor initGraphDesc;
             NetworkMetadata initNetworkMeta;
             if (_zeGraphExt) {
@@ -184,7 +173,6 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(std::shared_ptr<ov::Mod
             }
 
             initGraphDescriptors.push_back(initGraphDesc);
-            tensorsInits.push_back(std::move(tensor));
             initNetworkMetadata.push_back(std::move(initNetworkMeta));
         }
     } break;
@@ -198,11 +186,7 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compileWS(std::shared_ptr<ov::Mod
         std::shared_ptr<ov::Model> targetModel = model;
         size_t i = 0;
 
-        while (auto networkDescription =
-                   std::make_shared<NetworkDescription>(_compiler->compileWsIterative(targetModel, localConfig, i++))) {
-            ov::Tensor tensor;
-            tensor = std::move(networkDescription->compiledNetworkTensor);
-
+        while (auto tensor = _compiler->compileWsIterative(targetModel, localConfig, i++)) {
             GraphDescriptor graphDesc = _zeGraphExt->getGraphDescriptor(tensor.data(), tensor.get_byte_size());
             NetworkMetadata networkMetadata = _zeGraphExt->getNetworkMeta(graphDesc);
 

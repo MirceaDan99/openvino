@@ -6,7 +6,7 @@
 
 #include "intel_npu/common/icompiled_model.hpp"
 #include "intel_npu/common/igraph.hpp"
-#include "intel_npu/network_metadata.hpp"
+#include "intel_npu/common/network_metadata.hpp"
 #include "openvino/runtime/iinfer_request.hpp"
 #include "openvino/runtime/iplugin.hpp"
 

@@ -11,10 +11,13 @@
 #include <vector>
 
 // clang-format off
+#include "base/logging.h"
 #include "openvino/openvino.hpp"
 #include "samples/common.hpp"
 #include "samples/slog.hpp"
 // clang-format on
+
+#include "openvino/runtime/intel_npu/properties.hpp"
 
 /**
  * @brief Print OV Parameters
@@ -45,10 +48,10 @@ int main(int argc, char* argv[]) {
         ov::Core core;
 
         // -------- Step 2. Get list of available devices --------
-        std::vector<std::string> availableDevices = core.get_available_devices();
+        // std::vector<std::string> availableDevices = core.get_available_devices();
 
         // -------- Step 3. Query and print supported metrics and config keys --------
-        slog::info << "Available devices: " << slog::endl;
+        /* slog::info << "Available devices: " << slog::endl;
         for (auto&& device : availableDevices) {
             slog::info << device << slog::endl;
 
@@ -64,7 +67,23 @@ int main(int argc, char* argv[]) {
             }
 
             slog::info << slog::endl;
-        }
+        } */
+
+        // hello_query_device was chosen because it was the easiest to modify. However it would be best to have it
+        // within `benchmark_app` or `ov_npu_func_tests` or even new executable `memory_benchmark_app` (which might be
+        // the best option because tcmalloc.dll needs to be kept alive as long as the executable runs) to actually test
+        // memory regressions between PRs.
+        RAW_LOG(WARNING,
+                "Begin of application");  // tcmalloc.dll won't be included in dependents of hello_query_device.exe if
+                                          // we don't actually use any function from this library
+        // std::cout << "Wait for VTune..."; getchar();
+        auto model = core.read_model("model.xml");
+        auto compiled_model =
+            core.compile_model(model, "NPU", {ov::intel_npu::compiler_type(ov::intel_npu::CompilerType::PLUGIN)});
+        compiled_model = {};
+        // auto runtime_reqs = compiled_model.get_property(ov::runtime_requirements);
+        core.unload_plugin("NPU");
+
     } catch (const std::exception& ex) {
         std::cerr << std::endl << "Exception occurred: " << ex.what() << std::endl << std::flush;
         return EXIT_FAILURE;

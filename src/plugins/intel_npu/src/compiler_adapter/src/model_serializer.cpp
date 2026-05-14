@@ -4,6 +4,9 @@
 
 #include "model_serializer.hpp"
 
+#include <crtdbg.h>
+#include <ittnotify.h>
+
 #include <chrono>
 #include <cstdint>
 #include <istream>
@@ -11,6 +14,7 @@
 #include <streambuf>
 
 #include "custom_stream_buffer.hpp"
+#include "gperftools/heap-profiler.h"
 #include "intel_npu/common/filtered_config.hpp"
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/weights_pointer_attribute.hpp"
@@ -568,6 +572,15 @@ SerializedIR serializeIR(
     const std::function<bool(const std::string&, const std::optional<std::string>&)>& isOptionValueSupportedByCompiler,
     const bool computeModelHash,
     const bool storeWeightlessCacheAttributeFlag) {
+    HeapProfilerStart("serializeIR");
+    // __itt_heap_record_memory_growth_begin_ptr__3_0;
+    // _CrtMemState oldState, newState, stateDif;
+
+    // _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+    // _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+    // _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+    // _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+    // _CrtMemCheckpoint(&oldState);
     OPENVINO_ASSERT(model, "nullptr passed as model to the NPU model serializer");
     OPENVINO_ASSERT(isOptionValueSupportedByCompiler,
                     "The NPU model serializer was called without providing a function for querying the config options "
@@ -606,7 +619,13 @@ SerializedIR serializeIR(
         "Model serialization duration: %.2f ms",
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_time).count() /
             1000.0);
-
+    HeapProfilerDump("serializeIREnd");
+    HeapProfilerStop();
+    // __itt_heap_record_memory_growth_end;
+    // _CrtMemCheckpoint(&newState);
+    // if (_CrtMemDifference(&stateDif, &oldState, &newState)) {
+    //    _CrtMemDumpStatistics(&stateDif);
+    // }
     return serializedIR;
 }
 

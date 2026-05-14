@@ -4,4 +4,6 @@
 
 ov_add_sample(NAME hello_query_device
               SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
-              DEPENDENCIES ie_samples_utils)
+              DEPENDENCIES ie_samples_utils tcmalloc
+              INCLUDE_DIRECTORIES $<TARGET_PROPERTY:tcmalloc,INCLUDE_DIRECTORIES>
+)

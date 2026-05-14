@@ -20,6 +20,7 @@ ov_add_clang_format_target(${TARGET_NAME}_clang FOR_TARGETS ${TARGET_NAME})
 target_include_directories(${TARGET_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<TARGET_PROPERTY:tcmalloc,INCLUDE_DIRECTORIES>
 )
 
 target_link_libraries(${TARGET_NAME}
@@ -28,7 +29,10 @@ target_link_libraries(${TARGET_NAME}
         openvino::npu_al
         openvino::xml_util
         openvino::npu_vm_runtime_api
+        tcmalloc
 )
+
+# add_compile_definitions("PERFTOOLS_DLL_DECL=")
 
 #
 # targets install

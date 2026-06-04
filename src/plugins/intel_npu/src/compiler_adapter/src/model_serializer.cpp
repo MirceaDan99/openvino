@@ -14,6 +14,7 @@
 #include "intel_npu/common/filtered_config.hpp"
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/weights_pointer_attribute.hpp"
+#include "mem_usage.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
 #include "openvino/op/constant.hpp"
 #include "openvino/op/util/multi_subgraph_base.hpp"
@@ -568,6 +569,7 @@ SerializedIR serializeIR(
     const std::function<bool(const std::string&, const std::optional<std::string>&)>& isOptionValueSupportedByCompiler,
     const bool computeModelHash,
     const bool storeWeightlessCacheAttributeFlag) {
+    NPU_TRACE_MEMORY_EVENT();
     OPENVINO_ASSERT(model, "nullptr passed as model to the NPU model serializer");
     OPENVINO_ASSERT(isOptionValueSupportedByCompiler,
                     "The NPU model serializer was called without providing a function for querying the config options "
@@ -606,7 +608,6 @@ SerializedIR serializeIR(
         "Model serialization duration: %.2f ms",
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_time).count() /
             1000.0);
-
     return serializedIR;
 }
 

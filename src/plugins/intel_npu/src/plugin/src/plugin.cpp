@@ -18,6 +18,7 @@
 #include "intel_npu/config/npuw.hpp"
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/utils/utils.hpp"
+#include "mem_usage.hpp"
 #include "metrics.hpp"
 #include "npuw/compiled_model.hpp"
 #include "npuw/llm_compiled_model.hpp"
@@ -326,6 +327,7 @@ void init_config(const IEngineBackend* backend, OptionsDesc& options, FilteredCo
 namespace intel_npu {
 
 Plugin::Plugin() : _logger("NPUPlugin", Logger::global().level()) {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::Plugin");
     set_device_name("NPU");
 
@@ -482,6 +484,7 @@ bool Plugin::is_property_supported(const std::string& name, const ov::AnyMap& ar
 
 std::shared_ptr<ov::ICompiledModel> Plugin::compile_model(const std::shared_ptr<const ov::Model>& model,
                                                           const ov::AnyMap& properties) const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::compile_model");
     update_log_level(properties);
 
@@ -734,6 +737,7 @@ ov::SoPtr<ov::IRemoteContext> Plugin::get_default_context(const ov::AnyMap& remo
 }
 
 std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream, const ov::AnyMap& properties) const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::import_model");
     update_log_level(properties);
 
@@ -802,6 +806,7 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& stream,
 
 std::shared_ptr<ov::ICompiledModel> Plugin::import_model(const ov::Tensor& compiledBlob,
                                                          const ov::AnyMap& properties) const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::import_model");
     update_log_level(properties);
 
@@ -862,6 +867,7 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(const ov::Tensor& compi
 
 ov::SupportedOpsMap Plugin::query_model(const std::shared_ptr<const ov::Model>& model,
                                         const ov::AnyMap& properties) const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::query_model");
     update_log_level(properties);
 
@@ -906,6 +912,7 @@ ov::SupportedOpsMap Plugin::query_model(const std::shared_ptr<const ov::Model>& 
 std::shared_ptr<ov::ICompiledModel> Plugin::parse(const ov::Tensor& tensorBig,
                                                   std::unique_ptr<MetadataBase> metadata,
                                                   const ov::AnyMap& properties) const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "Plugin::parse");
 
     auto localProperties = properties;

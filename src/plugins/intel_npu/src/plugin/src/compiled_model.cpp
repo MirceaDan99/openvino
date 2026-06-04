@@ -13,6 +13,7 @@
 #include "intel_npu/config/config.hpp"
 #include "intel_npu/config/options.hpp"
 #include "intel_npu/utils/utils.hpp"
+#include "mem_usage.hpp"
 #include "metadata.hpp"
 #include "openvino/pass/constant_folding.hpp"
 #include "openvino/runtime/properties.hpp"
@@ -35,6 +36,7 @@ CompiledModel::CompiledModel(const std::shared_ptr<const ov::Model>& model,
       _device(device),
       _graph(graph),
       _batchSize(batchSize) {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "CompiledModel::CompiledModel");
 
     // Support for specific properties might depend on the characteristics of the compiled model.
@@ -59,6 +61,7 @@ CompiledModel::~CompiledModel() {
 }
 
 std::shared_ptr<ov::IAsyncInferRequest> CompiledModel::create_infer_request() const {
+    NPU_TRACE_MEMORY_EVENT();
     OV_ITT_SCOPED_TASK(itt::domains::NPUPlugin, "CompiledModel::create_infer_request");
 
     // sanity check

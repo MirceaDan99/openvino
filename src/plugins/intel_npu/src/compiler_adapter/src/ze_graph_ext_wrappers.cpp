@@ -13,9 +13,9 @@
 #include "intel_npu/utils/zero/zero_result.hpp"
 #include "intel_npu/utils/zero/zero_utils.hpp"
 #include "intel_npu/utils/zero/zero_wrappers.hpp"
+#include "mem_usage.hpp"
 #include "openvino/core/dimension.hpp"
 #include "openvino/core/partial_shape.hpp"
-
 namespace {
 using namespace intel_npu;
 /**
@@ -31,6 +31,7 @@ using namespace intel_npu;
 static IODescriptor getIODescriptor(const uint32_t indexUsedByDriver,
                                     const ze_graph_argument_properties_3_t& arg,
                                     const std::optional<ze_graph_argument_metadata_t>& metadata) {
+    NPU_TRACE_MEMORY_EVENT();
     auto logger = Logger::global().clone("getIODescriptor");
     ov::element::Type_t precision = zeroUtils::toOVElementType(arg.devicePrecision);
     ov::Shape shapeFromCompiler;
@@ -153,6 +154,7 @@ ZeGraphExtWrappers::~ZeGraphExtWrappers() {
 }
 
 void ZeGraphExtWrappers::destroyGraph(GraphDescriptor& graphDescriptor) {
+    NPU_TRACE_MEMORY_EVENT();
     if (_zeroInitStruct == nullptr || _zeroInitStruct->getContext() == nullptr || graphDescriptor._handle == nullptr) {
         _logger.warning("Context or graph is null while trying to destroy graph. Graph might be already destroyed.");
         graphDescriptor._handle = nullptr;
@@ -174,6 +176,7 @@ void ZeGraphExtWrappers::getGraphBinary(const GraphDescriptor& graphDescriptor,
                                         std::vector<uint8_t>& blob,
                                         const uint8_t*& blobPtr,
                                         size_t& blobSize) const {
+    NPU_TRACE_MEMORY_EVENT();
     if (graphDescriptor._handle == nullptr) {
         OPENVINO_THROW("Graph handle is null");
     }
@@ -256,6 +259,7 @@ void ZeGraphExtWrappers::setGraphArgumentValueWithStrides(const GraphDescriptor&
 }
 
 void ZeGraphExtWrappers::initializeGraph(const GraphDescriptor& graphDescriptor) const {
+    NPU_TRACE_MEMORY_EVENT();
     if (_graphExtVersion < ZE_MAKE_VERSION(1, 8)) {
         _logger.debug("Use initializeGraphThroughCommandList for ext version smaller than 1.8");
         initializeGraphThroughCommandList(graphDescriptor._handle);
@@ -278,6 +282,7 @@ void ZeGraphExtWrappers::initializeGraph(const GraphDescriptor& graphDescriptor)
 }
 
 void ZeGraphExtWrappers::initializeGraphThroughCommandList(ze_graph_handle_t graphHandle) const {
+    NPU_TRACE_MEMORY_EVENT();
     _logger.debug("initializeGraphThroughCommandList init start - create graphCommandList");
     CommandList graphCommandList(_zeroInitStruct);
     _logger.debug("initializeGraphThroughCommandList - get commandQueue");
@@ -319,6 +324,7 @@ std::unordered_set<std::string> parseQueryResult(std::vector<char>& data) {
 
 std::unordered_set<std::string> ZeGraphExtWrappers::queryGraph(SerializedIR serializedIR,
                                                                const std::string& buildFlags) const {
+    NPU_TRACE_MEMORY_EVENT();
     ze_graph_query_network_handle_t hGraphQueryNetwork = nullptr;
     ze_graph_desc_2_t desc = {
         _graphExtVersion < ZE_MAKE_VERSION(1, 16) ? ZE_STRUCTURE_TYPE_GRAPH_DESC : ZE_STRUCTURE_TYPE_GRAPH_DESC_2,
@@ -386,6 +392,7 @@ GraphDescriptor ZeGraphExtWrappers::getGraphDescriptor(SerializedIR serializedIR
                                                        const std::string& buildFlags,
                                                        const bool bypassUmdCache,
                                                        const bool secureCompile) const {
+    NPU_TRACE_MEMORY_EVENT();
     ze_graph_handle_t graphHandle = nullptr;
     void* pNext = nullptr;
     ze_graph_input_hash_t modelHash;
@@ -437,6 +444,7 @@ GraphDescriptor ZeGraphExtWrappers::getGraphDescriptor(SerializedIR serializedIR
 }
 
 GraphDescriptor ZeGraphExtWrappers::getGraphDescriptor(const void* blobData, size_t blobSize) const {
+    NPU_TRACE_MEMORY_EVENT();
     ze_graph_handle_t graphHandle = nullptr;
 
     if (blobSize == 0) {
@@ -491,6 +499,7 @@ void ZeGraphExtWrappers::getMetadata(ze_graph_handle_t graphHandle,
                                      uint32_t indexUsedByDriver,
                                      std::vector<IODescriptor>& inputs,
                                      std::vector<IODescriptor>& outputs) const {
+    NPU_TRACE_MEMORY_EVENT();
     // A bug inside the driver makes the "pfnGraphGetArgumentMetadata" call not safe for use prior to
     // "ze_graph_dditable_ext_1_6_t".
     // See: E#117498
@@ -560,6 +569,7 @@ void ZeGraphExtWrappers::getMetadata(ze_graph_handle_t graphHandle,
 }
 
 NetworkMetadata ZeGraphExtWrappers::getNetworkMeta(GraphDescriptor& graphDescriptor) const {
+    NPU_TRACE_MEMORY_EVENT();
     ze_graph_properties_t graphProperties = {};
     graphProperties.stype = ZE_STRUCTURE_TYPE_GRAPH_PROPERTIES;
 
@@ -577,6 +587,7 @@ NetworkMetadata ZeGraphExtWrappers::getNetworkMeta(GraphDescriptor& graphDescrip
 }
 
 std::optional<std::string> ZeGraphExtWrappers::getCompilerSupportedOptions() const {
+    NPU_TRACE_MEMORY_EVENT();
     // Early exit if api is not supported
     if (!_isCompilerOptionQuerySupported) {
         _logger.debug("Compiler options query is not supported by the driver - skipping!");
@@ -625,6 +636,7 @@ std::optional<std::string> ZeGraphExtWrappers::getCompilerSupportedOptions() con
 
 std::optional<bool> ZeGraphExtWrappers::isOptionSupported(std::string optName,
                                                           std::optional<std::string> optValue) const {
+    NPU_TRACE_MEMORY_EVENT();
     // Early exit if api is not supported
     if (!_isCompilerOptionQuerySupported) {
         _logger.debug("Compiler option query is not supported by the driver - skipping!");
@@ -653,6 +665,7 @@ bool ZeGraphExtWrappers::isPluginModelHashSupported() const {
 }
 
 void ZeGraphExtWrappers::evict_memory(const GraphDescriptor& graphDescriptor) const {
+    NPU_TRACE_MEMORY_EVENT();
     if (_graphExtVersion < ZE_MAKE_VERSION(1, 16)) {
         _logger.info("Memory eviction is not supported by the current driver version.");
         return;

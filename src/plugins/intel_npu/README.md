@@ -192,6 +192,50 @@ In compiler-in-driver flow, model serialization supports both:
 - `NO_WEIGHTS_COPY` (optimized behavior using pointer metadata to avoid extra duplication)
 
 For weights separation flows, additional runtime metadata derived from `WeightlessCacheAttribute` is preserved so weight offsets/sizes can be reconstructed correctly across serialization boundaries.
+
+### Weights copies in memory: frontend and serializer scenarios
+
+The amount of host-memory copying depends on two independent dimensions:
+- frontend ingestion path (IR vs ONNX, and for ONNX internal vs external data)
+- serializer version selected for the compiler path (`ALL_WEIGHTS_COPY` vs `NO_WEIGHTS_COPY`)
+
+#### Serializer impact (most important factor)
+
+- `ALL_WEIGHTS_COPY`:
+    - selected for older compiler compatibility and for some model/version combinations
+    - serializes model as XML + weights buffer by copying weights into a dedicated serialized BIN payload
+    - in practice, this means weights are read and copied for serialization regardless of whether frontend originally used mmap/shared buffers
+- `NO_WEIGHTS_COPY`:
+    - selected when supported by compiler and model constraints
+    - stores pointer/source metadata (`WeightsPointerAttribute`) and avoids duplicating weights into an extra serialized BIN buffer
+    - reduces temporary host-memory copies during serialization
+
+So for older compilers that do not support the optimized serializer path, effective behavior is equivalent to "copy all weights" for both IR and ONNX frontends.
+
+#### IR frontend behavior
+
+IR frontend uses a split representation:
+- topology in `.xml`
+- weights in `.bin`
+
+Weight ingestion behavior:
+- with mmap enabled: `.bin` is mapped and wrapped in shared buffer objects
+- with mmap disabled: `.bin` is read into an aligned host buffer
+
+Even if mmap/shared buffers are used at load time, `ALL_WEIGHTS_COPY` serialization still creates a copied weights payload.
+
+#### ONNX frontend behavior (internal vs external weights)
+
+An ONNX tensor is treated as external when `data_location == EXTERNAL` (or equivalent external-data location propagated by the graph iterator path). Otherwise, tensor data is internal (for example `raw_data` or typed ONNX tensor fields).
+
+For ONNX external data:
+- if mmap is enabled, external weight files are mapped and constants can reuse shared mapped buffers
+- if mmap is disabled, external data is loaded through file reads (small payloads eagerly; large payloads may use lazy-buffer backed reads)
+
+For ONNX internal data:
+- weights come from the ONNX model payload itself (`raw_data`/typed fields), and constants are materialized from that in-memory protobuf content
+
+As with IR, once the NPU path uses `ALL_WEIGHTS_COPY`, serialization duplicates weights into the serialized IR payload independently of whether ONNX weights were originally internal or external.
 <br>
 
 Developers and contributors can find more details on the internal design of an inference request [here](./docs/inference-request.md).

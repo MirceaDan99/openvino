@@ -140,6 +140,60 @@ Multiple inferences can be executed in parallel, either from the same applicatio
 Note: the current implementation of this property does not estimate or check the duration of the model execution. A fixed number of recommended inference requests is currently returned based on the existing performance data gathered from a reduced set of models with different topologies.
 <br>
 
+## Weights management in NPU Plugin
+
+The plugin supports multiple internal paths for model weights, depending on compiler type, cache mode, and model import/export flow.
+
+### Default flow (weights inside compiled blob)
+
+In the default flow, model weights are embedded in the compiled blob that is produced by the selected compiler adapter.
+
+At graph initialization (`initializeGraph`), the driver loads the required data (including weights) into device memory. After this stage, the plugin may release host-side blob storage to reduce memory usage if all of the following conditions are met:
+- blob lifetime is not marked as persistent (for example, not needed for later export)
+- blob data is not imported by driver in a way that requires host ownership
+- graph extension version supports the required checks
+- profiling mode does not require retaining blob data
+
+### Deferred weights load
+
+If `ov::intel_npu::defer_weights_load` is enabled, graph initialization is postponed from `CompiledModel` construction to the first `create_infer_request()` call.
+
+This defers the point where weights are uploaded to device memory, reducing upfront model load cost. The tradeoff is that first infer request creation includes graph initialization work.
+
+### Weights separation (weightless main schedule)
+
+When weights separation is enabled (`ov::enable_weightless`, also tied to OpenVINO cache mode `OPTIMIZE_SIZE`), the compilation flow can produce:
+- one main schedule (weightless execution graph)
+- one or more init schedules (dedicated schedules that materialize/prepare weights)
+
+At runtime, `WeightlessGraph`:
+- initializes init schedules first
+- maps model constants to init inputs using `WeightlessCacheAttribute` metadata
+- copies constant data into contiguous host buffers and binds them as init inputs
+- executes init schedules and captures their outputs
+- binds these outputs to the corresponding weight inputs of the main schedule (`isMainInputWeights`)
+
+This flow keeps weight transport explicit and allows a smaller main executable blob.
+
+### Import/export behavior for separated weights
+
+For separated-weights blobs, export writes the main part first and then init parts, with metadata carrying per-part sizes.
+
+On import, the plugin reconstructs init blobs from metadata and requires access to the original model constants in order to match and feed weights for init schedules. This can be provided by:
+- `ov::hint::model` (`MODEL_PTR`), or
+- `ov::weights_path` (for example, `.bin`/paired `.xml` IR path)
+
+If a weightless blob is imported without model weights context, import fails by design.
+
+### Driver serializer and weight copy strategy
+
+In compiler-in-driver flow, model serialization supports both:
+- `ALL_WEIGHTS_COPY` (legacy behavior: explicit XML + BIN copy)
+- `NO_WEIGHTS_COPY` (optimized behavior using pointer metadata to avoid extra duplication)
+
+For weights separation flows, additional runtime metadata derived from `WeightlessCacheAttribute` is preserved so weight offsets/sizes can be reconstructed correctly across serialization boundaries.
+<br>
+
 Developers and contributors can find more details on the internal design of an inference request [here](./docs/inference-request.md).
 
 ## Supported Properties

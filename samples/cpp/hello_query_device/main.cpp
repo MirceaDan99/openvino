@@ -16,6 +16,10 @@
 #include "samples/slog.hpp"
 // clang-format on
 
+#include "openvino/core/weight_sharing_util.hpp"
+#include "openvino/runtime/intel_npu/properties.hpp"
+#include "openvino/runtime/internal_properties.hpp"
+
 /**
  * @brief Print OV Parameters
  * @param reference on OV Parameter
@@ -36,8 +40,8 @@ int main(int argc, char* argv[]) {
         slog::info << ov::get_openvino_version() << slog::endl;
 
         // -------- Parsing and validation of input arguments --------
-        if (argc != 1) {
-            std::cout << "Usage : " << argv[0] << std::endl;
+        if (argc != 2) {
+            std::cout << "Usage : " << argv[0] << " <model_path>" << std::endl;
             return EXIT_FAILURE;
         }
 
@@ -65,6 +69,24 @@ int main(int argc, char* argv[]) {
 
             slog::info << slog::endl;
         }
+
+        auto model = core.read_model(argv[1]);
+        auto modelSharingContext = std::make_shared<ov::internal::WeightSharingCtxPtr::element_type>(ov::wsh::Context{
+            /* m_weight_registry = */ ov::wsh::Extension::get_weight_registry(*model),
+            /* m_cache_sources = */ ov::wsh::Extension::get_weight_sources(*model),  // cannot be empty, needed for
+                                                                                     // ov::wsh::Extension::get_buffer
+            /* m_runtime_sources = */ ov::wsh::WeightSourceRegistry{}});
+
+        auto compiled_model = core.compile_model(model,
+                                                 "NPU",
+                                                 {ov::intel_npu::bypass_umd_caching(true),
+                                                  ov::enable_weightless(true),
+                                                  ov::internal::model_sharing_context(modelSharingContext)});
+        auto infer_request = compiled_model.create_infer_request();
+        infer_request.infer();
+        infer_request = {};
+        compiled_model = {};
+        model = {};
     } catch (const std::exception& ex) {
         std::cerr << std::endl << "Exception occurred: " << ex.what() << std::endl << std::flush;
         return EXIT_FAILURE;

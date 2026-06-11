@@ -18,6 +18,7 @@
 #include "openvino/core/memory_util.hpp"
 #include "openvino/core/model.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
+#include "openvino/core/weight_sharing_util.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 
 #define USE_SINGLE_THREADED_RUN_INIT 1
@@ -322,9 +323,9 @@ void WeightlessGraph::initialize_impl(const FilteredConfig& config) {
     _initsCommandQueue = ZeroCmdQueuePool::getInstance().getCommandQueue(_zeroInitStruct, commandQueueDesc);
 
 #if USE_SINGLE_THREADED_RUN_INIT
-    run_init_single_threaded();
+    run_init_single_threaded(config);
 #else
-    run_init_multi_threaded();
+    run_init_multi_threaded(config);
 #endif
 
     if (_initBlobs != std::nullopt) {  // Do not release the graph when compiling a model on the CiD path, and we don't
@@ -442,8 +443,26 @@ WeightlessGraph::OutputData WeightlessGraph::allocate_outputs(const size_t initI
     return {std::move(initOutputsViewTensorsVector), initOutputsAllocatedTensor, std::move(initOutputsViewTensorsMap)};
 }
 
-void WeightlessGraph::run_init_single_threaded() {
-    auto constants = get_all_constants_in_topological_order(_model, _wgLogger);
+void WeightlessGraph::run_init_single_threaded(const FilteredConfig& config) {
+    std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> constants;
+    if (config.has<MODEL_SHARING_CONTEXT>()) {
+        auto modelSharingContext = config.get<MODEL_SHARING_CONTEXT>();
+        for (const auto& [sourceId, weightMetaMap] : modelSharingContext->m_weight_registry) {
+            for (const auto& [weightId, weightMeta] : weightMetaMap) {
+                OPENVINO_ASSERT(constants.find(weightId) == constants.end(),
+                                "Weights ID ",
+                                weightId,
+                                " found in multiple shared models. This may indicate a bug in the model sharing "
+                                "context management.");
+                constants[weightId] = std::make_shared<ov::op::v0::Constant>(
+                    weightMeta.m_type,
+                    ov::Shape{weightMeta.m_size / weightMeta.m_type.size()},
+                    ov::wsh::get_buffer(*modelSharingContext, sourceId, weightId));
+            }
+        }
+    } else {
+        constants = get_all_constants_in_topological_order(_model, _wgLogger);
+    }
     const size_t numberOfInits = _initsGraphDesc.size();
 
     // Note: Delete model prematurely, constants are still valid due to
@@ -464,10 +483,10 @@ void WeightlessGraph::run_init_single_threaded() {
     }
 }
 
-void WeightlessGraph::run_init_multi_threaded() {
+void WeightlessGraph::run_init_multi_threaded(const FilteredConfig& config) {
     if (_initsGraphDesc.size() == 1) {
         _wgLogger.info("::run_init_multi_threaded() for single init - fallback to ::runInit()");
-        run_init_single_threaded();
+        run_init_single_threaded(config);
         return;
     }
 

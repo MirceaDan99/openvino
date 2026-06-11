@@ -1609,4 +1609,34 @@ struct COMPATIBILITY_CHECK final : OptionBase<COMPATIBILITY_CHECK, ov::Compatibi
     }
 };
 
+struct MODEL_SHARING_CONTEXT final : OptionBase<MODEL_SHARING_CONTEXT, ov::internal::WeightSharingCtxPtr> {
+    static std::string_view key() {
+        return ov::internal::model_sharing_context.name();
+    }
+
+    static constexpr std::string_view getTypeName() {
+        return "ov::internal::WeightSharingCtxPtr";
+    }
+
+    static OptionMode mode() {
+        return OptionMode::RunTime;
+    }
+
+    static bool isPublic() {
+        return false;
+    }
+
+    static std::string toString(const ov::internal::WeightSharingCtxPtr&) {
+        OPENVINO_THROW("Option ", ov::internal::model_sharing_context.name(), " cannot be converted to string");
+    }
+
+    static ov::internal::WeightSharingCtxPtr parse(std::string_view) {
+        OPENVINO_THROW("Option ", ov::internal::model_sharing_context.name(), " cannot be parsed from string");
+    }
+
+    static ov::PropertyMutability mutability() {
+        return ov::PropertyMutability::WO;
+    }
+};
+
 }  // namespace intel_npu

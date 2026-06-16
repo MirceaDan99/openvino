@@ -24,6 +24,7 @@
 #include "npuw/orc/schema_npuw.hpp"
 #include "npuw/serialization.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
+#include "openvino/core/weight_sharing_util.hpp"
 #include "openvino/op/constant.hpp"
 #include "openvino/op/parameter.hpp"
 #include "openvino/runtime/intel_npu/properties.hpp"
@@ -128,10 +129,11 @@ std::shared_ptr<ov::Model> create_dummy_model(const std::vector<IODescriptor>& i
 
 /**
  * @brief Checks if there is any "WeightlessCacheAttribute" present in the model and replaces its bin_offset with the
- * constant ID if valid, otherwise the attribute will be removed. If no attribute was found within constants, an error
- * is thrown. The weights separation flow in its current state cannot work without this attribuite.
+ * constant ID if valid, otherwise the attribute will be removed. If no attribute was found within constants, return
+ * value will be used to log about fallback to basic compilation.
+ * @returns True or false depending if constants still have the attribute after filtering based on valid constant ids.
  */
-void check_weightless_cache_attribute_occurrence(const std::shared_ptr<const ov::Model>& model) {
+bool filter_weightless_cache_attribute(const std::shared_ptr<const ov::Model>& model) {
     bool isWCAFound = false;
     for (const auto& ov_node : model->get_ordered_ops()) {
         if (!ov::is_type<ov::op::v0::Constant>(ov_node)) {
@@ -143,16 +145,13 @@ void check_weightless_cache_attribute_occurrence(const std::shared_ptr<const ov:
             auto constantID = ov::wsh::Extension::get_constant_id(*ov::as_type_ptr<ov::op::v0::Constant>(ov_node));
             if (constantID != ov::wsh::invalid_constant_id) {
                 it->second.as<ov::WeightlessCacheAttribute>().bin_offset = constantID;
+                isWCAFound = true;
             } else {
                 ov_node->get_rt_info().erase(it);
             }
-            isWCAFound = true;
         }
     }
-
-    OPENVINO_ASSERT(isWCAFound,
-                    "No \"WeightlessCacheAttribute\" has been found in any of the model's Constant nodes. This "
-                    "attribute is required for running the \"weights separation\" flow.");
+    return isWCAFound;
 }
 
 std::shared_ptr<ov::ICompiledModel> import_model_npuw(std::istream& stream,
@@ -641,12 +640,15 @@ std::shared_ptr<ov::ICompiledModel> Plugin::compile_model(const std::shared_ptr<
     std::shared_ptr<intel_npu::IGraph> graph;
 
     auto compileWithConfig = [&](auto&& modelToCompile, const auto& config) {
-        if (!localConfig.get<ENABLE_WEIGHTLESS>()) {
-            return compiler->compile(modelToCompile, config);
-        } else {
-            check_weightless_cache_attribute_occurrence(model);
-            return compiler->compileWS(std::move(modelToCompile), config);
+        if (localConfig.get<ENABLE_WEIGHTLESS>()) {
+            if (filter_weightless_cache_attribute(modelToCompile)) {
+                return compiler->compileWS(std::move(modelToCompile), config);
+            }
+            _logger.warning("Weightless compilation was requested, but no \"WeightlessCacheAttribute\" has been "
+                            "found within the constants of the given model. "
+                            "Fallback to basic compilation will happen.");
         }
+        return compiler->compile(modelToCompile, config);
     };
 
     try {
@@ -1048,7 +1050,9 @@ std::shared_ptr<ov::ICompiledModel> Plugin::parse(const ov::Tensor& tensorBig,
             }
         }
 
-        check_weightless_cache_attribute_occurrence(originalModel);
+        OPENVINO_ASSERT(filter_weightless_cache_attribute(originalModel),
+                        "Cannot have a weightless blob from a model "
+                        "with no constants that populate \"WeightlessCacheAttribute\"");
     }
 
     const std::optional<std::vector<ov::Tensor>> initBlobs =

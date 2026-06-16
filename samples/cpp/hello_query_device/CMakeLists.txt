@@ -4,4 +4,4 @@
 
 ov_add_sample(NAME hello_query_device
               SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
-              DEPENDENCIES ie_samples_utils openvino::runtime::dev)
+              DEPENDENCIES ie_samples_utils)

@@ -127,10 +127,12 @@ std::shared_ptr<ov::Model> create_dummy_model(const std::vector<IODescriptor>& i
 }
 
 /**
- * @brief Just checks if there is any "WeightlessCacheAttribute" present in the model. In the negative case, an error is
- * thrown. The weights separation flow in its current state cannot work without this attribuite.
+ * @brief Checks if there is any "WeightlessCacheAttribute" present in the model and replaces its bin_offset with the
+ * constant ID if valid, otherwise the attribute will be removed. If no attribute was found within constants, an error
+ * is thrown. The weights separation flow in its current state cannot work without this attribuite.
  */
 void check_weightless_cache_attribute_occurrence(const std::shared_ptr<const ov::Model>& model) {
+    bool isWCAFound = false;
     for (const auto& ov_node : model->get_ordered_ops()) {
         if (!ov::is_type<ov::op::v0::Constant>(ov_node)) {
             continue;
@@ -138,12 +140,19 @@ void check_weightless_cache_attribute_occurrence(const std::shared_ptr<const ov:
 
         if (auto it = ov_node->get_rt_info().find(ov::WeightlessCacheAttribute::get_type_info_static());
             it != ov_node->get_rt_info().end()) {
-            return;
+            auto constantID = ov::wsh::Extension::get_constant_id(*ov::as_type_ptr<ov::op::v0::Constant>(ov_node));
+            if (constantID != ov::wsh::invalid_constant_id) {
+                it->second.as<ov::WeightlessCacheAttribute>().bin_offset = constantID;
+            } else {
+                ov_node->get_rt_info().erase(it);
+            }
+            isWCAFound = true;
         }
     }
 
-    OPENVINO_THROW("No \"WeightlessCacheAttribute\" has been found in any of the model's Constant nodes. This "
-                   "attribute is required for running the \"weights separation\" flow.");
+    OPENVINO_ASSERT(isWCAFound,
+                    "No \"WeightlessCacheAttribute\" has been found in any of the model's Constant nodes. This "
+                    "attribute is required for running the \"weights separation\" flow.");
 }
 
 std::shared_ptr<ov::ICompiledModel> import_model_npuw(std::istream& stream,

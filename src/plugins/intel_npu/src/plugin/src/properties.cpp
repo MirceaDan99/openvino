@@ -736,7 +736,6 @@ void Properties::registerCompiledModelProperties() {
     TRY_REGISTER_SIMPLE_PROPERTY(ov::compilation_num_threads, COMPILATION_NUM_THREADS);
     TRY_REGISTER_SIMPLE_PROPERTY(ov::hint::inference_precision, INFERENCE_PRECISION_HINT);
     TRY_REGISTER_SIMPLE_PROPERTY(ov::cache_mode, CACHE_MODE);
-    TRY_REGISTER_SIMPLE_PROPERTY(ov::internal::model_sharing_context, MODEL_SHARING_CONTEXT);
 
     // Properties we shall only enable if they were set prior-to-compilation
     TRY_REGISTER_COMPILEDMODEL_PROPERTY_IFSET(ov::num_streams, NUM_STREAMS);
@@ -1015,8 +1014,7 @@ void Properties::setProperty(const ov::AnyMap& properties) {
         } else {
             if (std::get<1>(_properties[value.first]) == ov::PropertyMutability::RO) {
                 OPENVINO_THROW("READ-ONLY configuration key: ", value.first);
-            } else if (value.first == ov::cache_encryption_callbacks.name() ||
-                       value.first == ov::internal::model_sharing_context.name()) {
+            } else if (value.first == ov::cache_encryption_callbacks.name()) {
                 special_cfgs_to_set.emplace(value.first, value.second);
             } else {
                 cfgs_to_set.emplace(value.first, value.second.as<std::string>());
@@ -1170,7 +1168,7 @@ FilteredConfig Properties::getConfigForSpecificCompiler(const ov::AnyMap& proper
             } else {
                 updatedConfig.addOrUpdateInternal(key, value);
             }
-        } else if (key == ov::cache_encryption_callbacks.name() || key == ov::internal::model_sharing_context.name()) {
+        } else if (key == ov::cache_encryption_callbacks.name()) {
             specialCfgsToSet.emplace(key, properties.at(key));
         } else {
             cfgsToSet.emplace(key, value);
@@ -1222,7 +1220,7 @@ FilteredConfig Properties::getConfigWithCompilerPropertiesDisabled(const ov::Any
             }
         }
 
-        if (key == ov::cache_encryption_callbacks.name() || key == ov::internal::model_sharing_context.name()) {
+        if (key == ov::cache_encryption_callbacks.name()) {
             specialCfgsToSet.emplace(key, properties.at(key));
         } else {
             cfgsToSet.emplace(key, value);

@@ -19,6 +19,9 @@
 #include "openvino/core/model.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
 #include "openvino/runtime/make_tensor.hpp"
+#include "openvino/runtime/shared_buffer.hpp"
+#include "openvino/util/common_util.hpp"
+#include "openvino/util/mmap_object.hpp"
 
 #define USE_SINGLE_THREADED_RUN_INIT 1
 
@@ -32,6 +35,10 @@ std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> get_all_consta
     const std::shared_ptr<const ov::Model>& model,
     const Logger& logger) {
     std::unordered_map<size_t, std::shared_ptr<ov::op::v0::Constant>> constants;
+
+    if (!model) {
+        return constants;
+    }
 
     // Match the inputs of the "init" model with the Constant nodes of the original model
     for (auto&& node : model->get_ops()) {
@@ -322,9 +329,9 @@ void WeightlessGraph::initialize_impl(const FilteredConfig& config) {
     _initsCommandQueue = ZeroCmdQueuePool::getInstance().getCommandQueue(_zeroInitStruct, commandQueueDesc);
 
 #if USE_SINGLE_THREADED_RUN_INIT
-    run_init_single_threaded();
+    run_init_single_threaded(config);
 #else
-    run_init_multi_threaded();
+    run_init_multi_threaded(config);
 #endif
 
     if (_initBlobs != std::nullopt) {  // Do not release the graph when compiling a model on the CiD path, and we don't
@@ -442,9 +449,30 @@ WeightlessGraph::OutputData WeightlessGraph::allocate_outputs(const size_t initI
     return {std::move(initOutputsViewTensorsVector), initOutputsAllocatedTensor, std::move(initOutputsViewTensorsMap)};
 }
 
-void WeightlessGraph::run_init_single_threaded() {
+void WeightlessGraph::run_init_single_threaded(const FilteredConfig& config) {
     auto constants = get_all_constants_in_topological_order(_model, _wgLogger);
     const size_t numberOfInits = _initsGraphDesc.size();
+
+    if (constants.empty()) {
+        auto mapped_memory = ov::load_mmap_object(config.get<WEIGHTS_PATH>());
+        for (size_t initIndex = 0; initIndex < numberOfInits; ++initIndex) {
+            for (const IODescriptor& descriptor : _initsMetadata.at(initIndex).inputs) {
+                const auto& opt = ov::util::view_to_number<size_t>(descriptor.nameFromCompiler);
+                OPENVINO_ASSERT(opt.has_value(), "Failed parse id for constant: ", descriptor.nameFromCompiler);
+
+                const size_t id = opt.value();
+                auto weight_buffer = std::make_shared<ov::SharedBuffer<std::shared_ptr<ov::MappedMemory>>>(
+                    mapped_memory->data() + id,
+                    shape_size(descriptor.shapeFromCompiler.to_shape()) * descriptor.precision.bitwidth() / 8,
+                    mapped_memory);
+
+                constants.insert({id,
+                                  std::make_shared<ov::op::v0::Constant>(descriptor.precision,
+                                                                         descriptor.shapeFromCompiler.to_shape(),
+                                                                         weight_buffer)});
+            }
+        }
+    }
 
     // Note: Delete model prematurely, constants are still valid due to
     // shared_ptr semantics.
@@ -464,10 +492,10 @@ void WeightlessGraph::run_init_single_threaded() {
     }
 }
 
-void WeightlessGraph::run_init_multi_threaded() {
+void WeightlessGraph::run_init_multi_threaded(const FilteredConfig& config) {
     if (_initsGraphDesc.size() == 1) {
         _wgLogger.info("::run_init_multi_threaded() for single init - fallback to ::runInit()");
-        run_init_single_threaded();
+        run_init_single_threaded(config);
         return;
     }
 

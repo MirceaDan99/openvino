@@ -91,9 +91,9 @@ private:
      */
     void run_pipeline(const size_t initIndex);
 
-    void run_init_single_threaded();
+    void run_init_single_threaded(const FilteredConfig& config);
 
-    void run_init_multi_threaded();
+    void run_init_multi_threaded(const FilteredConfig& config);
 
     /**
      * @brief Sets the processed weights as inputs of the main schedule.

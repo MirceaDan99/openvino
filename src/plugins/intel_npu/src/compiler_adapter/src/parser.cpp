@@ -96,8 +96,6 @@ std::shared_ptr<IGraph> Parser::parse(const ov::Tensor& mainBlob,
     }
     _logger.debug("inits schedule parse end");
 
-    OPENVINO_ASSERT(model.has_value(), "Model is required for parsing weightless blobs.");
-
     return std::make_shared<WeightlessGraph>(_zeGraphExt,
                                              _zeroInitStruct,
                                              mainGraphDesc,
@@ -106,7 +104,7 @@ std::shared_ptr<IGraph> Parser::parse(const ov::Tensor& mainBlob,
                                              initGraphDescriptors,
                                              std::move(initNetworkMetadata),
                                              initBlobs,
-                                             std::move(model.value()),
+                                             std::move(model.value_or(nullptr)),
                                              config,
                                              blobIsPersistent);
 }

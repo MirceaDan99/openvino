@@ -40,8 +40,8 @@ using namespace intel_npu;
 const std::vector<size_t> CONSTANT_NODE_DUMMY_SHAPE{1};
 
 const char* NPU_PLUGIN_LIB_NAME = "openvino_intel_npu_plugin";
-constexpr std::string_view WEIGHTS_EXTENSION = ".bin";
-constexpr std::string_view XML_EXTENSION = ".xml";
+constexpr std::string_view WEIGHTS_IR_EXTENSION = ".bin";
+constexpr std::string_view WEIGHTS_ONNX_EXTENSION = ".data_proxy";
 constexpr std::string_view ONNX_EXTENSION = ".onnx";
 
 /**
@@ -128,13 +128,14 @@ std::shared_ptr<ov::Model> create_dummy_model(const std::vector<IODescriptor>& i
 }
 
 /**
- * @brief Checks if there is any "WeightlessCacheAttribute" present in the model and replaces its bin_offset with the
- * constant ID if valid, otherwise the attribute will be removed. If no attribute was found within constants, return
- * value will be used to log about fallback to basic compilation.
- * @returns True or false depending if constants still have the attribute after filtering based on valid constant ids.
+ * @brief Just checks if there is any "WeightlessCacheAttribute" present in the model. In the negative case, an error is
+ * thrown. The weights separation flow in its current state cannot work without this attribuite.
  */
-bool filter_weightless_cache_attribute(const std::shared_ptr<const ov::Model>& model) {
-    bool isWCAFound = false;
+void check_weightless_cache_attribute_occurrence(const std::shared_ptr<const ov::Model>& model) {
+    if (!model) {
+        return;
+    }
+
     for (const auto& ov_node : model->get_ordered_ops()) {
         if (!ov::is_type<ov::op::v0::Constant>(ov_node)) {
             continue;
@@ -142,16 +143,12 @@ bool filter_weightless_cache_attribute(const std::shared_ptr<const ov::Model>& m
 
         if (auto it = ov_node->get_rt_info().find(ov::WeightlessCacheAttribute::get_type_info_static());
             it != ov_node->get_rt_info().end()) {
-            auto constantID = ov::wsh::Extension::get_constant_id(*ov::as_type_ptr<ov::op::v0::Constant>(ov_node));
-            if (constantID != ov::wsh::invalid_constant_id) {
-                it->second.as<ov::WeightlessCacheAttribute>().bin_offset = constantID;
-                isWCAFound = true;
-            } else {
-                ov_node->get_rt_info().erase(it);
-            }
+            return;
         }
     }
-    return isWCAFound;
+
+    OPENVINO_THROW("No \"WeightlessCacheAttribute\" has been found in any of the model's Constant nodes. This "
+                   "attribute is required for running the \"weights separation\" flow.");
 }
 
 std::shared_ptr<ov::ICompiledModel> import_model_npuw(std::istream& stream,
@@ -640,15 +637,12 @@ std::shared_ptr<ov::ICompiledModel> Plugin::compile_model(const std::shared_ptr<
     std::shared_ptr<intel_npu::IGraph> graph;
 
     auto compileWithConfig = [&](auto&& modelToCompile, const auto& config) {
-        if (localConfig.get<ENABLE_WEIGHTLESS>()) {
-            if (filter_weightless_cache_attribute(modelToCompile)) {
-                return compiler->compileWS(std::move(modelToCompile), config);
-            }
-            _logger.warning("Weightless compilation was requested, but no \"WeightlessCacheAttribute\" has been "
-                            "found within the constants of the given model. "
-                            "Fallback to basic compilation will happen.");
+        if (!localConfig.get<ENABLE_WEIGHTLESS>()) {
+            return compiler->compile(modelToCompile, config);
+        } else {
+            check_weightless_cache_attribute_occurrence(model);
+            return compiler->compileWS(std::move(modelToCompile), config);
         }
-        return compiler->compile(modelToCompile, config);
     };
 
     try {
@@ -1024,35 +1018,25 @@ std::shared_ptr<ov::ICompiledModel> Plugin::parse(const ov::Tensor& tensorBig,
         if (!originalModel) {
             if (!localConfig.get<WEIGHTS_PATH>().empty()) {
                 const std::string weightsPath = localConfig.get<WEIGHTS_PATH>();
-                const size_t weightsPathLength = weightsPath.length();
-                std::string xmlPath = weightsPath;
-
-                if (weightsPathLength > WEIGHTS_EXTENSION.length() &&
-                    weightsPath.compare(weightsPathLength - WEIGHTS_EXTENSION.length(),
-                                        WEIGHTS_EXTENSION.length(),
-                                        WEIGHTS_EXTENSION) == 0) {
-                    xmlPath.replace(weightsPathLength - WEIGHTS_EXTENSION.length(),
-                                    WEIGHTS_EXTENSION.length(),
-                                    XML_EXTENSION);
-                } else if (weightsPathLength <= ONNX_EXTENSION.length() ||
-                           weightsPath.compare(weightsPathLength - ONNX_EXTENSION.length(),
-                                               ONNX_EXTENSION.length(),
-                                               ONNX_EXTENSION)) {
+                auto ext = ov::util::path_to_string(ov::util::make_path(weightsPath).extension());
+                if (ext == ONNX_EXTENSION) {
+                    originalModel = get_core()->read_model(ov::util::make_path(weightsPath),
+                                                           ov::util::make_path(weightsPath),
+                                                           properties);
+                    check_weightless_cache_attribute_occurrence(originalModel);
+                } else if (ext == WEIGHTS_IR_EXTENSION || ext == WEIGHTS_ONNX_EXTENSION) {
+                    // for now, let empty model to have its constants populated when creating WeightlessGraph
+                } else {
                     OPENVINO_THROW("Invalid path to the weights: ",
                                    weightsPath,
-                                   ". A \".bin\" or \".onnx\" extension was expected.");
+                                   ". A \".bin\", \".data_proxy\" or \".onnx\" extension was expected.");
                 }
-
-                originalModel =
-                    get_core()->read_model(ov::util::make_path(xmlPath), ov::util::make_path(weightsPath), properties);
             } else {
                 OPENVINO_THROW("Attempted to load a weightless compiled model, but no weights have been provided");
             }
         }
 
-        OPENVINO_ASSERT(filter_weightless_cache_attribute(originalModel),
-                        "Cannot have a weightless blob from a model "
-                        "with no constants that populate \"WeightlessCacheAttribute\"");
+        check_weightless_cache_attribute_occurrence(originalModel);
     }
 
     const std::optional<std::vector<ov::Tensor>> initBlobs =
@@ -1079,11 +1063,14 @@ std::shared_ptr<ov::ICompiledModel> Plugin::parse(const ov::Tensor& tensorBig,
         }
     }
 
-    auto graph = parser->parse(tensorMain,
-                               localConfig,
-                               initBlobs,
-                               weightsSeparationEnabled ? std::make_optional(std::move(originalModel)) : std::nullopt,
-                               compatibilityDescriptor);
+    auto graph =
+        parser->parse(tensorMain,
+                      localConfig,
+                      initBlobs,
+                      weightsSeparationEnabled
+                          ? (originalModel != nullptr ? std::make_optional(std::move(originalModel)) : std::nullopt)
+                          : std::nullopt,
+                      compatibilityDescriptor);
 
     graph->update_network_name("net" + std::to_string(_compiledModelLoadCounter++));
     const std::shared_ptr<ov::Model> modelDummy =

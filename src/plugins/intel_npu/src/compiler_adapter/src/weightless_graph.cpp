@@ -18,6 +18,7 @@
 #include "openvino/core/memory_util.hpp"
 #include "openvino/core/model.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
+#include "openvino/core/weight_sharing_util.hpp"
 #include "openvino/runtime/make_tensor.hpp"
 #include "openvino/runtime/shared_buffer.hpp"
 #include "openvino/util/common_util.hpp"
@@ -356,15 +357,25 @@ WeightlessGraph::InputData WeightlessGraph::allocate_inputs(
     std::vector<std::shared_ptr<ov::ITensor>> initInputsViewTensors;
     size_t initInputsByteSize = 0;
 
+    auto constant_source = ov::wsh::Extension::get_constant_source_buffer(*constants.begin()->second);
+    bool allTensorsCanBeImported = constant_source != nullptr;
     for (const IODescriptor& descriptor : _initsMetadata.at(initIndex).inputs) {
         initInputsByteSize +=
             ov::util::get_memory_size(descriptor.precision, shape_size(descriptor.shapeFromCompiler.to_shape()));
     }
+    allTensorsCanBeImported = allTensorsCanBeImported && (initInputsByteSize % 4096 == 0);
 
     // Due to the large number of init inputs, allocating a single buffer for all of them is more efficient. "View
     // tensors" are used for separating them.
     const std::shared_ptr<ZeroTensor> initInputsAllocatedTensor =
-        std::make_shared<ZeroTensor>(_zeroInitStruct, ov::element::Type_t::u8, ov::Shape({initInputsByteSize}), true);
+        allTensorsCanBeImported
+            ? std::make_shared<ZeroTensor>(
+                  _zeroInitStruct,
+                  ov::make_tensor(ov::element::Type_t::u8, ov::Shape({initInputsByteSize}), constant_source->get_ptr()))
+            : std::make_shared<ZeroTensor>(_zeroInitStruct,
+                                           ov::element::Type_t::u8,
+                                           ov::Shape({initInputsByteSize}),
+                                           true);
 
     std::vector<size_t> noLongerRequiredIds;
     noLongerRequiredIds.reserve(_initsMetadata.at(initIndex).inputs.size());
@@ -378,7 +389,10 @@ WeightlessGraph::InputData WeightlessGraph::allocate_inputs(
         const size_t currentInputSize =
             ov::util::get_memory_size(descriptor.precision, shape_size(tensorShapeFromCompiler));
 
-        const size_t id = std::stoi(descriptor.nameFromCompiler);
+        const auto& opt = ov::util::view_to_number<size_t>(descriptor.nameFromCompiler);
+        OPENVINO_ASSERT(opt.has_value(), "Failed parse id for constant: ", descriptor.nameFromCompiler);
+
+        const size_t id = opt.value();
         auto constantIt = constants.find(id);
         OPENVINO_ASSERT(constantIt != constants.end(),
                         "Weights ID ",
@@ -391,7 +405,10 @@ WeightlessGraph::InputData WeightlessGraph::allocate_inputs(
                         "Binary size mismatch found for weights ID ",
                         id,
                         " between the model and compiled metadata.");
-        std::memcpy(currentInputBufferLocation, constant->get_data_ptr(), currentInputSize);
+        if (!allTensorsCanBeImported) {
+            // Copy needed only for tensors that couldn't be imported
+            std::memcpy(currentInputBufferLocation, constant->get_data_ptr(), currentInputSize);
+        }
 
         // Note: Use compiler-provided precision and shape, because duplicates -
         // constants that point to the same binary data - can in theory have

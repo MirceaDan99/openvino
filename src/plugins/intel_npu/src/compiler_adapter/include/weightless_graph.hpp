@@ -47,12 +47,12 @@ public:
 
     // TODO: public for multi-threaded execution
     struct InputData {
-        std::vector<std::shared_ptr<ov::ITensor>> tensors;
+        std::vector<ov::Tensor> tensors;
         std::shared_ptr<ZeroTensor> hostTensor;
     };
 
     struct OutputData {
-        std::vector<std::shared_ptr<ov::ITensor>> tensors;
+        std::vector<ov::Tensor> tensors;
         std::shared_ptr<ZeroTensor> hostTensor;
         std::unordered_map<std::string, std::shared_ptr<ov::ITensor>> tensorsMap;
     };
@@ -82,8 +82,8 @@ private:
      * @brief Creates a pipeline for a single init schedule. This pipeline can be used for running inferences.
      */
     void create_pipeline(const size_t initIndex,
-                         const std::vector<std::shared_ptr<ov::ITensor>>& inputTensors,
-                         const std::vector<std::shared_ptr<ov::ITensor>>& outputTensors);
+                         const std::vector<ov::Tensor>& inputTensors,
+                         const std::vector<ov::Tensor>& outputTensors);
 
     /**
      * @brief Runs the pipeline corresponding to a single init schedule.

@@ -104,7 +104,7 @@ std::shared_ptr<IGraph> Parser::parse(const ov::Tensor& mainBlob,
                                              initGraphDescriptors,
                                              std::move(initNetworkMetadata),
                                              initBlobs,
-                                             std::move(model.value_or(nullptr)),
+                                             model.value_or(nullptr),
                                              config,
                                              blobIsPersistent);
 }

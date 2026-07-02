@@ -18,6 +18,7 @@
 #include "intel_npu/common/compiler_adapter_factory.hpp"
 #include "intel_npu/common/device_helpers.hpp"
 #include "intel_npu/config/config.hpp"
+#include "intel_npu/config/options.hpp"
 #include "intel_npu/utils/utils.hpp"
 #include "openvino/op/add.hpp"
 #include "openvino/op/less_eq.hpp"
@@ -68,6 +69,20 @@ std::shared_ptr<ov::Model> make_2_input_less_eq_non_zero(const ov::Shape& input_
     auto model = std::make_shared<ov::Model>(ov::ResultVector{result}, ov::ParameterVector{param0, param1});
     model->set_friendly_name("TwoTwoInputNonZeroAddModel");
     return model;
+}
+
+template <typename OptionType>
+void register_option(::intel_npu::OptionsDesc& options, ::intel_npu::FilteredConfig& config) {
+    options.add<OptionType>();
+    const auto option_mode = OptionType::mode();
+    const bool is_enabled_by_default =
+        option_mode == ::intel_npu::OptionMode::RunTime || option_mode == ::intel_npu::OptionMode::Both;
+    config.enable(OptionType::key(), is_enabled_by_default);
+}
+
+template <typename... OptionTypes>
+void register_options(::intel_npu::OptionsDesc& options, ::intel_npu::FilteredConfig& config) {
+    (register_option<OptionTypes>(options, config), ...);
 }
 
 }  // namespace
@@ -154,11 +169,64 @@ public:
         zeMutableCommandListExtVersion = graphExtMutableCommandListExtPair.second;
 
         auto options = std::make_shared<::intel_npu::OptionsDesc>();
-        options->add<::intel_npu::PLATFORM>();
-        options->add<::intel_npu::COMPILER_TYPE>();
-        options->add<::intel_npu::BATCH_MODE>();
-        options->add<::intel_npu::MODEL_SERIALIZER_VERSION>();
         npu_config = std::make_unique<::intel_npu::FilteredConfig>(options);
+        options->reset();
+        register_options<::intel_npu::LOG_LEVEL,
+                         ::intel_npu::CACHE_DIR,
+                         ::intel_npu::CACHE_MODE,
+                         ::intel_npu::COMPILED_BLOB,
+                         ::intel_npu::DEVICE_ID,
+                         ::intel_npu::NUM_STREAMS,
+                         ::intel_npu::PERF_COUNT,
+                         ::intel_npu::LOADED_FROM_CACHE,
+                         ::intel_npu::COMPILATION_NUM_THREADS,
+                         ::intel_npu::PERFORMANCE_HINT,
+                         ::intel_npu::EXECUTION_MODE_HINT,
+                         ::intel_npu::PERFORMANCE_HINT_NUM_REQUESTS,
+                         ::intel_npu::INFERENCE_PRECISION_HINT,
+                         ::intel_npu::MODEL_PRIORITY,
+                         ::intel_npu::COMPILATION_MODE_PARAMS,
+                         ::intel_npu::DMA_ENGINES,
+                         ::intel_npu::TILES,
+                         ::intel_npu::COMPILATION_MODE,
+                         ::intel_npu::COMPILER_TYPE,
+                         ::intel_npu::COMPILER_VERSION,
+                         ::intel_npu::PLATFORM,
+                         ::intel_npu::CREATE_EXECUTOR,
+                         ::intel_npu::DYNAMIC_SHAPE_TO_STATIC,
+                         ::intel_npu::PROFILING_TYPE,
+                         ::intel_npu::BACKEND_COMPILATION_PARAMS,
+                         ::intel_npu::BATCH_MODE,
+                         ::intel_npu::BYPASS_UMD_CACHING,
+                         ::intel_npu::DEFER_WEIGHTS_LOAD,
+                         ::intel_npu::WEIGHTS_PATH,
+                         ::intel_npu::RUN_INFERENCES_SEQUENTIALLY,
+                         ::intel_npu::COMPILER_DYNAMIC_QUANTIZATION,
+                         ::intel_npu::QDQ_OPTIMIZATION,
+                         ::intel_npu::QDQ_OPTIMIZATION_AGGRESSIVE,
+                         ::intel_npu::STEPPING,
+                         ::intel_npu::DISABLE_VERSION_CHECK,
+                         ::intel_npu::EXPORT_RAW_BLOB,
+                         ::intel_npu::IMPORT_RAW_BLOB,
+                         ::intel_npu::BATCH_COMPILER_MODE_SETTINGS,
+                         ::intel_npu::TURBO,
+                         ::intel_npu::ENABLE_WEIGHTLESS,
+                         ::intel_npu::SEPARATE_WEIGHTS_VERSION,
+                         ::intel_npu::WS_COMPILE_CALL_NUMBER,
+                         ::intel_npu::MODEL_SERIALIZER_VERSION,
+                         ::intel_npu::ENABLE_STRIDES_FOR,
+                         ::intel_npu::SHARED_COMMON_QUEUE,
+                         ::intel_npu::CACHE_ENCRYPTION_CALLBACKS,
+                         ::intel_npu::RUNTIME_REQUIREMENTS,
+                         ::intel_npu::COMPATIBILITY_CHECK,
+                         ::intel_npu::MAX_TILES,
+                         ::intel_npu::WORKLOAD_TYPE,
+                         ::intel_npu::DISABLE_IDLE_MEMORY_PRUNING>(*options, *npu_config);
+
+        OPENVINO_SUPPRESS_DEPRECATED_START
+        register_option<::intel_npu::ENABLE_CPU_PINNING>(*options, *npu_config);
+        OPENVINO_SUPPRESS_DEPRECATED_END
+
         ::intel_npu::Config::ConfigMap configMap;
         npu_config->enable(::intel_npu::PLATFORM::key().data(), true);
         npu_config->enable(::intel_npu::MODEL_SERIALIZER_VERSION::key().data(), true);

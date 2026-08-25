@@ -4,6 +4,8 @@
 
 #include "model_serializer.hpp"
 
+#include <ittnotify.h>
+
 #include <chrono>
 #include <cstdint>
 #include <istream>
@@ -13,8 +15,10 @@
 #include "custom_stream_buffer.hpp"
 #include "intel_npu/common/filtered_config.hpp"
 #include "intel_npu/config/options.hpp"
+#include "intel_npu/weights_mmap_attribute.hpp"
 #include "intel_npu/weights_pointer_attribute.hpp"
 #include "openvino/core/rt_info/weightless_caching_attributes.hpp"
+#include "openvino/core/weight_sharing_util.hpp"
 #include "openvino/op/constant.hpp"
 #include "openvino/op/util/multi_subgraph_base.hpp"
 #include "openvino/pass/serialize.hpp"
@@ -148,7 +152,7 @@ std::string rankToLegacyLayoutString(const size_t rank) {
 /**
  * @brief Stores weights metadata (memory location & buffer size in bytes) as runtime attributes of "ov::Constant"
  * nodes.
- * @details The presence of these attrbutes determines which weights are copied in a separate buffer by the
+ * @details The presence of these attributes determines which weights are copied in a separate buffer by the
  * serialization algorithm. If the attribute is found, the metadata required to reconstruct the weights buffer is
  * present, therefore copying the buffer is omitted.
  *
@@ -168,6 +172,42 @@ void storeWeightsPointerAttribute(const std::shared_ptr<ov::Model>& model) {
             ov::RTMap& runtimeInfoMap = constantNode->get_rt_info();
             runtimeInfoMap[intel_npu::WeightsPointerAttribute::get_type_info_static()] =
                 intel_npu::WeightsPointerAttribute(constantNode->get_data_ptr(), constantNode->get_byte_size());
+        }
+    }
+}
+
+/**
+ * @brief Stores mmap weights metadata (weights path, constant offset and size in bytes) as runtime attributes of
+ * "ov::Constant" nodes.
+ * @details The presence of these attributes determines which weights are copied in a separate buffer by the
+ * serialization algorithm. If the attribute is found, the metadata required to reconstruct the weights buffer is
+ * present, therefore copying the buffer is omitted.
+ *
+ * @param model The target model, the attributes will be stored within it.
+ */
+void storeWeightsMmapAttribute(const std::shared_ptr<ov::Model>& model, const char* weightsPath) {
+    return;
+    if (!weightsPath) {
+        return;
+    }
+
+    for (auto&& node : model->get_ops()) {
+        if (auto subgraphNode = ov::as_type_ptr<ov::op::util::MultiSubGraphOp>(node)) {
+            // "Models within models"
+            for (const std::shared_ptr<ov::Model>& submodel : subgraphNode->get_functions()) {
+                storeWeightsMmapAttribute(submodel, weightsPath);
+            }
+            continue;
+        }
+
+        if (auto constantNode = ov::as_type_ptr<ov::op::v0::Constant>(node)) {
+            auto source_buffer = ov::wsh::Extension::get_constant_source_buffer(*constantNode);
+            if (source_buffer == nullptr) {
+                continue;
+            }
+            ov::RTMap& runtimeInfoMap = constantNode->get_rt_info();
+            runtimeInfoMap[intel_npu::WeightsMmapAttribute::get_type_info_static()] =
+                intel_npu::WeightsMmapAttribute(weightsPath, ov::wsh::Extension::get_constant_id(*constantNode));
         }
     }
 }
@@ -499,8 +539,10 @@ private:
 class VCLSerializerWithoutWeightsCopy : public VCLSerializerBase {
 public:
     VCLSerializerWithoutWeightsCopy(const ze_graph_compiler_version_info_t compilerVersion,
-                                    const uint32_t supportedOpset)
-        : VCLSerializerBase(compilerVersion, supportedOpset) {
+                                    const uint32_t supportedOpset,
+                                    const char* weightsPath)
+        : VCLSerializerBase(compilerVersion, supportedOpset),
+          _weightsPath(weightsPath) {
         _logger.setName("VCLSerializerWithoutWeightsCopy");
     };
 
@@ -509,6 +551,7 @@ public:
                            const bool storeWeightlessCacheAttributeFlag) override {
         run_common_pipeline(model, storeWeightlessCacheAttributeFlag);
         storeWeightsPointerAttribute(model);
+        storeWeightsMmapAttribute(model, _weightsPath);
 
         uint64_t serializedModelSize = count_model_size(model);
 
@@ -558,6 +601,8 @@ private:
         _logger.debug("count_model_size completed, serialized model size: %d", streamBuf.size());
         return streamBuf.size();
     }
+
+    const char* _weightsPath;
 };
 
 SerializedIR serializeIR(
@@ -567,7 +612,8 @@ SerializedIR serializeIR(
     const ov::intel_npu::ModelSerializerVersion serializerVersion,
     const std::function<bool(const std::string&, const std::optional<std::string>&)>& isOptionValueSupportedByCompiler,
     const bool computeModelHash,
-    const bool storeWeightlessCacheAttributeFlag) {
+    const bool storeWeightlessCacheAttributeFlag,
+    const char* weightsPath) {
     OPENVINO_ASSERT(model, "nullptr passed as model to the NPU model serializer");
     OPENVINO_ASSERT(isOptionValueSupportedByCompiler,
                     "The NPU model serializer was called without providing a function for querying the config options "
@@ -590,7 +636,7 @@ SerializedIR serializeIR(
     SerializedIR serializedIR;
     switch (version) {
     case ov::intel_npu::ModelSerializerVersion::NO_WEIGHTS_COPY:
-        serializedIR = VCLSerializerWithoutWeightsCopy(compilerVersion, supportedOpsetVersion)
+        serializedIR = VCLSerializerWithoutWeightsCopy(compilerVersion, supportedOpsetVersion, weightsPath)
                            .serialize(nonConstantModel, computeModelHash, storeWeightlessCacheAttributeFlag);
         break;
     case ov::intel_npu::ModelSerializerVersion::ALL_WEIGHTS_COPY:
@@ -607,6 +653,7 @@ SerializedIR serializeIR(
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_time).count() /
             1000.0);
 
+    __itt_heap_record_memory_growth_end_ptr__3_0;
     return serializedIR;
 }
 

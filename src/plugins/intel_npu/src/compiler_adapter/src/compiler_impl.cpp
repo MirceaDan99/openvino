@@ -375,13 +375,16 @@ std::vector<ov::Tensor> VCLCompilerImpl::compileWsOneShot(const std::shared_ptr<
                                                          const std::optional<std::string>& optionValue) {
         return is_option_supported(optionName, optionValue);
     };
+
+    const auto weightsPath = config.get<WEIGHTS_PATH>();
     auto serializedIR = compiler_utils::serializeIR(model,
                                                     compilerVersion,
                                                     maxOpsetVersion,
                                                     config.get<MODEL_SERIALIZER_VERSION>(),
                                                     isOptionValueSupportedByCompiler,
-                                                    false,
-                                                    true);
+                                                    /* computeModelHash = */ false,
+                                                    /* storeWeightlessCacheAttributeFlag = */ true,
+                                                    weightsPath.c_str());
     FilteredConfig updatedConfig = config;
     if (config.isAvailable(ov::intel_npu::model_serializer_version.name())) {
         updatedConfig.update({{ov::intel_npu::model_serializer_version.name(),
@@ -504,11 +507,16 @@ ov::SupportedOpsMap VCLCompilerImpl::query(const std::shared_ptr<const ov::Model
                                                          const std::optional<std::string>& optionValue) {
         return is_option_supported(optionName, optionValue);
     };
+
+    const auto weightsPath = config.get<WEIGHTS_PATH>();
     auto serializedIR = compiler_utils::serializeIR(model,
                                                     compilerVersion,
                                                     maxOpsetVersion,
                                                     config.get<MODEL_SERIALIZER_VERSION>(),
-                                                    isOptionValueSupportedByCompiler);
+                                                    isOptionValueSupportedByCompiler,
+                                                    /* computeModelHash = */ false,
+                                                    /* storeWeightlessCacheAttributeFlag = */ false,
+                                                    weightsPath.c_str());
     if (config.isAvailable(ov::intel_npu::model_serializer_version.name())) {
         updatedConfig.update({{ov::intel_npu::model_serializer_version.name(),
                                MODEL_SERIALIZER_VERSION::toString(serializedIR.serializerVersion)}});

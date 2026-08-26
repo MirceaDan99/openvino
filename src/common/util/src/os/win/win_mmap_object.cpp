@@ -418,6 +418,7 @@ MapHolder::~MapHolder() {
     // before any view is unmapped or VA space is released.
     wait_for_pending_prefetch();
 
+    MapHolderPool::remove(m_data);
     if (m_view_base && m_total_va_size != 0) {
         // Placeholder path: unregister VEH, unmap all views, free all VA allocations.
         const auto& api = PlaceholderAPI::instance();
@@ -944,12 +945,44 @@ void MapHolder::hint_evict(size_t offset, size_t size) noexcept {
     }
 }
 
+void MapHolderPool::add(const std::shared_ptr<MapHolder>& holder) {
+    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
+    MapHolderPool::get()->m_pool[reinterpret_cast<size_t>(holder->data())] = holder;
+}
+
+void MapHolderPool::remove(const void* ptr) {
+    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
+    MapHolderPool::get()->m_pool.erase(reinterpret_cast<size_t>(ptr));
+}
+
+bool MapHolderPool::hint_evict(const void* address, size_t size) {
+    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
+    std::shared_ptr<MapHolder> holder;
+    auto it = MapHolderPool::get()->m_pool.lower_bound(reinterpret_cast<size_t>(address));
+    if (it == MapHolderPool::get()->m_pool.end() || it->first > reinterpret_cast<size_t>(address)) {
+        if (it == MapHolderPool::get()->m_pool.begin()) {
+            return false;
+        }
+        --it;
+        holder = it->second.lock();
+        if (!holder) {
+            return false;
+        }
+    }
+    if (!(holder && address > holder->data() && address < holder->data() + holder->size())) {
+        throw std::runtime_error("Failed to find the MapHolder for the given address");
+    }
+    holder->hint_evict(reinterpret_cast<size_t>(address) - reinterpret_cast<size_t>(holder->data()), size);
+    return true;
+}
+
 std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& path,
                                                    size_t offset,
                                                    size_t size,
                                                    bool no_placeholder) {
     auto holder = std::make_shared<MapHolder>();
     holder->set(path, offset, size, no_placeholder);
+    MapHolderPool::add(holder);
     return holder;
 }
 
@@ -959,6 +992,12 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t off
     }
     auto holder = std::make_shared<MapHolder>();
     holder->set_from_handle(handle, offset, size);
+    MapHolderPool::add(holder);
     return holder;
 }
+
+bool hint_evict(const void* address, size_t size) {
+    return MapHolderPool::hint_evict(address, size);
+}
+
 }  // namespace ov

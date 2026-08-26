@@ -12,7 +12,9 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "openvino/util/file_util.hpp"
@@ -91,4 +93,42 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& 
  * @return MappedMemory shared ptr object which keep mmaped memory and control the lifetime.
  */
 std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t offset = 0, size_t size = auto_size);
+
+/**
+ * @brief Given an address, tries to query the corresponding MapHolder and hint that the given range of the mapping will
+ * be evicted.
+ *
+ * @param address Chunked address of the mapped memory. Should reside in the range [mmap_base, mmap_base + mmap_size)
+ * @param size Size of chunked eviction.
+ * @return true if the eviction hint was successfully applied; false otherwise.
+ */
+bool hint_evict(const void* address, size_t size = 0);
+
+class MapHolder;
+
+#ifdef OPENVINO_STATIC_LIBRARY
+#    define OV_MMAP_API
+#else
+#    if defined(IMPLEMENT_OPENVINO_API) || defined(IMPLEMENT_OPENVINO_RUNTIME_API)
+#        define OV_MMAP_API __declspec(dllexport)
+#    else
+#        define OV_MMAP_API __declspec(dllimport)
+#    endif  // defined(IMPLEMENT_OPENVINO_API) || defined(IMPLEMENT_OPENVINO_RUNTIME_API)
+#endif      // OPENVINO_STATIC_LIBRARY
+
+class MapHolderPool {
+public:
+    static void add(const std::shared_ptr<MapHolder>& holder);
+    static void remove(const void* ptr);
+    static bool hint_evict(const void* address, size_t size);
+    static OV_MMAP_API std::shared_ptr<MapHolderPool> get() {
+        static std::shared_ptr<MapHolderPool> mapHolderSingletonPool = std::make_shared<MapHolderPool>();
+        return mapHolderSingletonPool;
+    }
+
+private:
+    std::mutex m_pool_mutex;
+    std::map<size_t, std::weak_ptr<MapHolder>> m_pool;
+};
+
 }  // namespace ov

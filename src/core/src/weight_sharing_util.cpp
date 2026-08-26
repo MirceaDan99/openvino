@@ -103,6 +103,9 @@ void Extension::hint_evict(ov::op::v0::Constant& constant) noexcept {
     if (constant.m_data) {
         if (constant.m_data->get_descriptor()) {
             constant.m_data->hint_evict();
+        } else {
+            // This might be a mmap address, try to hint evict using the address of the data buffer
+            ov::hint_evict(constant.m_data->get_ptr<void>(), constant.get_byte_size());
         }
     }
 }

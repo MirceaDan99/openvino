@@ -38,6 +38,8 @@
 #    define MEM_RESERVE_PLACEHOLDER 0x00040000
 #endif
 
+#include "psapi.h"  // needed by GetMappedFileNameW
+
 namespace ov {
 namespace util {
 
@@ -116,6 +118,32 @@ static char* region_end(const MEMORY_BASIC_INFORMATION& mbi) {
 static bool query_region(void* addr, MEMORY_BASIC_INFORMATION& mbi) {
     return ::VirtualQuery(addr, &mbi, sizeof(mbi)) != 0;
 }
+
+static size_t total_va_size_from_allocation(void* addr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    if (::VirtualQuery(addr, &mbi, sizeof(mbi)) != sizeof(mbi)) {
+        return 0;
+    }
+
+    LPVOID allocBase = mbi.AllocationBase;
+    size_t totalSize = 0;
+    LPVOID currentAddress = allocBase;
+
+    // 2. Loop through adjacent chunks belonging to the same allocation base
+    while (::VirtualQuery(currentAddress, &mbi, sizeof(mbi)) == sizeof(mbi)) {
+        if (mbi.AllocationBase != allocBase) {
+            break;  // We hit a different allocation region
+        }
+        totalSize += mbi.RegionSize;
+        currentAddress = (LPVOID)((uintptr_t)currentAddress + mbi.RegionSize);
+    }
+
+    return totalSize;
+}
+
+class HandleHolder;
+
+static HandleHolder get_mapped_file_handle_from_address(void* address);
 
 /**
  * @brief VEH-based registry of MapHolders for on-demand remapping of evicted slots.
@@ -418,7 +446,6 @@ MapHolder::~MapHolder() {
     // before any view is unmapped or VA space is released.
     wait_for_pending_prefetch();
 
-    MapHolderPool::remove(m_data);
     if (m_view_base && m_total_va_size != 0) {
         // Placeholder path: unregister VEH, unmap all views, free all VA allocations.
         const auto& api = PlaceholderAPI::instance();
@@ -945,35 +972,20 @@ void MapHolder::hint_evict(size_t offset, size_t size) noexcept {
     }
 }
 
-void MapHolderPool::add(const std::shared_ptr<MapHolder>& holder) {
-    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
-    MapHolderPool::get()->m_pool[reinterpret_cast<size_t>(holder->data())] = holder;
-}
-
-void MapHolderPool::remove(const void* ptr) {
-    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
-    MapHolderPool::get()->m_pool.erase(reinterpret_cast<size_t>(ptr));
-}
-
-bool MapHolderPool::hint_evict(const void* address, size_t size) {
-    std::lock_guard lock(MapHolderPool::get()->m_pool_mutex);
-    std::shared_ptr<MapHolder> holder;
-    auto it = MapHolderPool::get()->m_pool.lower_bound(reinterpret_cast<size_t>(address));
-    if (it == MapHolderPool::get()->m_pool.end() || it->first > reinterpret_cast<size_t>(address)) {
-        if (it == MapHolderPool::get()->m_pool.begin()) {
-            return false;
-        }
-        --it;
-        holder = it->second.lock();
-        if (!holder) {
-            return false;
-        }
+static HandleHolder get_mapped_file_handle_from_address(void* address) {
+    std::wstring mapped_file_path;
+    mapped_file_path.resize(MAX_PATH);
+    if (::GetMappedFileNameW(GetCurrentProcess(), address, mapped_file_path.data(), MAX_PATH) == 0) {
+        return HandleHolder();
     }
-    if (!(holder && address > holder->data() && address < holder->data() + holder->size())) {
-        throw std::runtime_error("Failed to find the MapHolder for the given address");
-    }
-    holder->hint_evict(reinterpret_cast<size_t>(address) - reinterpret_cast<size_t>(holder->data()), size);
-    return true;
+    auto fh = ::CreateFileW(mapped_file_path.c_str(),
+                            GENERIC_READ,
+                            FILE_SHARE_READ | FILE_SHARE_DELETE,
+                            nullptr,
+                            OPEN_EXISTING,
+                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
+                            nullptr);
+    return HandleHolder(fh);
 }
 
 std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& path,
@@ -982,7 +994,6 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& 
                                                    bool no_placeholder) {
     auto holder = std::make_shared<MapHolder>();
     holder->set(path, offset, size, no_placeholder);
-    MapHolderPool::add(holder);
     return holder;
 }
 
@@ -992,12 +1003,69 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t off
     }
     auto holder = std::make_shared<MapHolder>();
     holder->set_from_handle(handle, offset, size);
-    MapHolderPool::add(holder);
     return holder;
 }
 
-bool hint_evict(const void* address, size_t size) {
-    return MapHolderPool::hint_evict(address, size);
+std::pair</* offset */ size_t, std::shared_ptr<MappedMemory>> hint_evict(void* address, size_t size) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (!query_region(address, mbi)) {
+        return {0, nullptr};
+    }
+
+    if (mbi.Type == MEM_MAPPED) {
+        auto handle = get_mapped_file_handle_from_address(address);
+        if (!handle.valid()) {
+            return {0, nullptr};
+        }
+
+        const size_t offset = static_cast<size_t>(static_cast<char*>(address) - static_cast<char*>(mbi.AllocationBase));
+        auto* entry = MmapVehRegistry::instance().find(reinterpret_cast<uintptr_t>(address));
+        auto* holder = entry ? entry->m_holder : nullptr;
+        if (entry != nullptr) {
+            // Duplicated code from MapHolder destructor. If the holder is not found in the registry, but address is
+            // part of valid mapped allocation, try to unmap the mapping and create new MapHolder
+
+            // Single-pass enumeration: unmap mapped regions and collect allocation bases.
+            // This reduces VirtualQuery calls from 2N to N.
+            std::vector<void*> allocations_to_free;
+
+            if (auto api = PlaceholderAPI::instance(); api.m_available) {
+                char* current = static_cast<char*>(mbi.AllocationBase);
+                const auto gran = util::get_system_alloc_granularity();
+                const char* end =
+                    current + util::align_size_up(total_va_size_from_allocation(mbi.AllocationBase), gran);
+
+                while (current < end) {
+                    MEMORY_BASIC_INFORMATION mbi{};
+                    if (!query_region(current, mbi))
+                        break;
+                    if (mbi.Type == MEM_MAPPED) {
+                        // Pass AllocationBase: UnmapViewOfFile2 requires the view's base address
+                        // as originally mapped; BaseAddress may be a sub-region mid-view.
+                        api.m_unmap_view_of_file2(GetCurrentProcess(), mbi.AllocationBase, MEM_PRESERVE_PLACEHOLDER);
+                    }
+                    void* alloc_base = mbi.AllocationBase;
+                    if (allocations_to_free.empty() || allocations_to_free.back() != alloc_base)
+                        allocations_to_free.push_back(alloc_base);
+                    current = region_end(mbi);
+                }
+            } else {
+                // Legacy path (MapViewOfFile without placeholders).
+                ::UnmapViewOfFile(static_cast<char*>(mbi.AllocationBase));
+            }
+
+            // Now free each unique allocation.
+            for (void* alloc_base : allocations_to_free) {
+                ::VirtualFree(alloc_base, 0, MEM_RELEASE);
+            }
+            // What if load_mapp_object was initially called with offset and specific size?
+            // Can determine it from file_size and total_va_size? Is total_va_size - m_file_mapped_size > gran?
+            return std::pair<size_t, std::shared_ptr<ov::MappedMemory>>(offset, load_mmap_object(handle.get()));
+        } else {
+            holder->hint_evict(static_cast<size_t>(offset), size);
+        }
+    }
+    return {0, nullptr};
 }
 
 }  // namespace ov

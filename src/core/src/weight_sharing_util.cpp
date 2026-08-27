@@ -105,7 +105,13 @@ void Extension::hint_evict(ov::op::v0::Constant& constant) noexcept {
             constant.m_data->hint_evict();
         } else {
             // This might be a mmap address, try to hint evict using the address of the data buffer
-            ov::hint_evict(constant.m_data->get_ptr<void>(), constant.get_byte_size());
+            auto result = ov::hint_evict(constant.m_data->get_ptr<void>(), constant.get_byte_size());
+            if (result.second != nullptr) {
+                constant.m_data = std::make_shared<ov::SharedBuffer<std::shared_ptr<ov::MappedMemory>>>(
+                    result.second->data() + result.first,
+                    constant.get_byte_size(),
+                    result.second);
+            }
         }
     }
 }

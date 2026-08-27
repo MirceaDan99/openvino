@@ -12,9 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include "openvino/util/file_util.hpp"
@@ -95,40 +93,15 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& 
 std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t offset = 0, size_t size = auto_size);
 
 /**
- * @brief Given an address, tries to query the corresponding MapHolder and hint that the given range of the mapping will
- * be evicted.
- *
- * @param address Chunked address of the mapped memory. Should reside in the range [mmap_base, mmap_base + mmap_size)
- * @param size Size of chunked eviction.
- * @return true if the eviction hint was successfully applied; false otherwise.
+ * @brief Tries to evict a mapped region from the registry, if it exists. If it doesn't exist, returns a new
+ * MappedMemory and the of memory mapping will be unmapped. Useful for the scenario where a mapped region is being
+ * evicted, but the MappedMemory is not in the registry (e.g. it was created by another DLL having static version of
+ * OpenVINO).
+ * @param address Base address of the VA reservation to remove (must match the key used in add())
+ * @param size Size of the region to evict
+ * @return pair of offset where given address was found from base allocation and shared_ptr to a new MappedMemory if it
+ * wasn't found in the registry, nullptr otherwise.
  */
-bool hint_evict(const void* address, size_t size = 0);
-
-class MapHolder;
-
-#ifdef OPENVINO_STATIC_LIBRARY
-#    define OV_MMAP_API
-#else
-#    if defined(IMPLEMENT_OPENVINO_API) || defined(IMPLEMENT_OPENVINO_RUNTIME_API)
-#        define OV_MMAP_API __declspec(dllexport)
-#    else
-#        define OV_MMAP_API __declspec(dllimport)
-#    endif  // defined(IMPLEMENT_OPENVINO_API) || defined(IMPLEMENT_OPENVINO_RUNTIME_API)
-#endif      // OPENVINO_STATIC_LIBRARY
-
-class MapHolderPool {
-public:
-    static void add(const std::shared_ptr<MapHolder>& holder);
-    static void remove(const void* ptr);
-    static bool hint_evict(const void* address, size_t size);
-    static OV_MMAP_API std::shared_ptr<MapHolderPool> get() {
-        static std::shared_ptr<MapHolderPool> mapHolderSingletonPool = std::make_shared<MapHolderPool>();
-        return mapHolderSingletonPool;
-    }
-
-private:
-    std::mutex m_pool_mutex;
-    std::map<size_t, std::weak_ptr<MapHolder>> m_pool;
-};
+std::pair</* offset */ size_t, std::shared_ptr<ov::MappedMemory>> hint_evict(void* address, size_t size = 0);
 
 }  // namespace ov

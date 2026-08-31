@@ -93,15 +93,12 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(const std::filesystem::path& 
 std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t offset = 0, size_t size = auto_size);
 
 /**
- * @brief Tries to evict a mapped region from the registry, if it exists. If it doesn't exist, returns a new
- * MappedMemory and the of memory mapping will be unmapped. Useful for the scenario where a mapped region is being
- * evicted, but the MappedMemory is not in the registry (e.g. it was created by another DLL having static version of
- * OpenVINO).
+ * @brief Tries to evict a mapped region from the registry, if it exists.
+ * Useful for the scenario where a mapped region is being evicted, but the MappedMemory is not in the registry (e.g. it
+ * was created by another DLL having static version of OpenVINO).
  * @param address Base address of the VA reservation to remove (must match the key used in add())
  * @param size Size of the region to evict
- * @return pair of offset where given address was found from base allocation and shared_ptr to a new MappedMemory if it
- * wasn't found in the registry, nullptr otherwise.
  */
-std::pair</* offset */ size_t, std::shared_ptr<ov::MappedMemory>> hint_evict(void* address, size_t size = 0);
+void hint_evict(void* address, size_t size = 0);
 
 }  // namespace ov

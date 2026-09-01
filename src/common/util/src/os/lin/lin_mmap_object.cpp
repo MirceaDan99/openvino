@@ -245,4 +245,9 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t off
     holder->set_from_fd(handle, offset, size);
     return holder;
 }
+
+void hint_evict(void* address, size_t size) {
+    munmap(address, size);
+}
+
 }  // namespace ov

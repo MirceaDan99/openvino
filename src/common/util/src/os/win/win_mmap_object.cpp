@@ -375,8 +375,9 @@ private:
     void* m_data{};   //!< pointer exposed to callers
     size_t m_size{};  //!< user-visible byte count
     uint64_t m_id{std::numeric_limits<uint64_t>::max()};
-    bool m_is_view{true};  //!< whether this MapHolder is used as a view for other already allocated mapped memory.
-                           //!< Used for eviction hints based on addresses. Destructor will not try to unmap allocations
+    bool m_is_view{
+        false};  //!< whether this MapHolder is used as a view for other already allocated mapped memory.
+                 //!< Used for eviction hints based on addresses. Destructor will not try to unmap allocations
 
     HandleHolder m_handle{};       //!< section object from CreateFileMappingW
     HandleHolder m_file_handle{};  //!< file HANDLE kept open to block DeleteFile (set-by-path only)
@@ -398,9 +399,10 @@ private:
     std::mutex m_pending_prefetch_mutex;
     std::vector<std::future<void>> m_pending_prefetch;
 
+    inline static size_t SHM_LOCAL_ID = 0;        // incremental id for mapped files
+    const inline static size_t SHM_ZERO_ID = 0;   // used only for views
+    const inline static size_t SHM_MAX_ID = 100;  // maximum number of mapped files
     const inline static wchar_t SHM_NAME_PREFIX[] = L"Local\\OpenVINO_MMAP_OBJECT_";
-    const inline static size_t SHM_START_ID = 0;
-    const inline static size_t SHM_START_MAX_ID = 100;  // maximum 100 mapped files allowed
 };
 
 LONG NTAPI MmapVehRegistry::veh(PEXCEPTION_POINTERS ep) {
@@ -440,7 +442,7 @@ MapHolder::MapHolder(void* mapped_address) {
     }
     m_size = m_total_va_size = m_file_mapped_size = static_cast<size_t>(scan - static_cast<char*>(m_data));
 
-    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_START_ID);
+    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_ZERO_ID);
     auto fh = ::OpenFileMappingW(FILE_MAP_READ, FALSE, shared_memory_name.c_str());
     if (fh == NULL) {
         throw std::runtime_error{"Cannot open shared memory object: " + ov::util::path_to_string(shared_memory_name) +
@@ -694,7 +696,7 @@ void MapHolder::setup(HANDLE file_handle, size_t offset, size_t size, bool no_pl
     }
 
     // Create a read-only file-mapping object for the whole file.
-    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_START_ID);
+    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_LOCAL_ID++);
     m_handle =
         HandleHolder{::CreateFileMappingW(file_handle, nullptr, PAGE_READONLY, 0, 0, shared_memory_name.c_str())};
     if (!m_handle.valid()) {
@@ -706,7 +708,6 @@ void MapHolder::setup(HANDLE file_handle, size_t offset, size_t size, bool no_pl
     if (no_placeholder || !try_placeholder_setup(m_aligned_offset, head_pad, total_va_size, file_size)) {
         legacy_setup(m_aligned_offset, head_pad, m_size);
     }
-    m_is_view = false;
 }
 
 void MapHolder::set(const std::filesystem::path& path, size_t offset, size_t size, bool no_placeholder) {
@@ -728,7 +729,6 @@ void MapHolder::set(const std::filesystem::path& path, size_t offset, size_t siz
     // back to the original file data, even if the caller deletes or renames the file.
     // FILE_SHARE_DELETE allows std::filesystem::remove() to succeed while the mapping is alive.
     m_file_handle = std::move(fh_holder);
-    m_is_view = false;
 }
 
 void MapHolder::set_from_handle(FileHandle handle, size_t offset, size_t size) {
@@ -758,7 +758,26 @@ bool MapHolder::remap_placeholder(HANDLE proc, char* base, size_t size) {
     const size_t va_offset = base - m_view_base;
     const auto file_off = static_cast<ULONG64>(m_aligned_offset + va_offset);
 
-    const auto v = replace_placeholder(api, m_handle.get(), proc, base, file_off, size);
+    HandleHolder handle = std::move(m_handle);
+    PVOID v = NULL;
+    size_t shm_id = 0;
+    while (shm_id != SHM_LOCAL_ID != 0 ? SHM_LOCAL_ID : SHM_MAX_ID) {  // small optimization if we have local id
+        v = replace_placeholder(api, handle.get(), proc, base, file_off, size);
+        if (v != NULL) {
+            break;
+        }
+
+        const std::wstring shared_memory_name = SHM_NAME_PREFIX + std::to_wstring(++shm_id);
+        HANDLE fh = ::OpenFileMappingW(FILE_MAP_READ, FALSE, shared_memory_name.c_str());
+        if (fh == NULL) {
+            break;
+        }
+        m_handle = HandleHolder{fh};
+    }
+    if (m_handle.get() == INVALID_HANDLE_VALUE) {
+        m_handle = std::move(handle);
+    }
+
     return v == base;
 }
 

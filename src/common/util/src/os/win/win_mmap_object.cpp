@@ -38,6 +38,8 @@
 #    define MEM_RESERVE_PLACEHOLDER 0x00040000
 #endif
 
+#include <psapi.h>
+
 namespace ov {
 namespace util {
 
@@ -399,10 +401,7 @@ private:
     std::mutex m_pending_prefetch_mutex;
     std::vector<std::future<void>> m_pending_prefetch;
 
-    inline static size_t SHM_LOCAL_ID = 0;        // incremental id for mapped files
-    const inline static size_t SHM_ZERO_ID = 0;   // used only for views
-    const inline static size_t SHM_MAX_ID = 100;  // maximum number of mapped files
-    const inline static wchar_t SHM_NAME_PREFIX[] = L"Local\\OpenVINO_MMAP_OBJECT_";
+    const inline static wchar_t SHM_NAME_PREFIX[] = L"Local\\";
 };
 
 LONG NTAPI MmapVehRegistry::veh(PEXCEPTION_POINTERS ep) {
@@ -432,6 +431,21 @@ MapHolder::MapHolder(void* mapped_address) {
         return;
     }
 
+    std::wstring mapped_file_path;
+    mapped_file_path.resize(MAX_PATH);
+    if (::GetMappedFileNameW(GetCurrentProcess(), mapped_address, mapped_file_path.data(), MAX_PATH) == 0) {
+        return;
+    }
+
+    const std::filesystem::path path(mapped_file_path);
+    const std::wstring shared_memory_name =
+        std::wstring(SHM_NAME_PREFIX) + path.stem().wstring() + path.extension().wstring();
+    auto fh = ::OpenFileMappingW(FILE_MAP_READ, FALSE, shared_memory_name.c_str());
+    if (fh == NULL) {
+        return;
+    }
+    m_handle = HandleHolder{fh};
+
     m_data = scan_mbi.AllocationBase;
     char* scan = m_view_base = static_cast<char*>(scan_mbi.AllocationBase);
     while (scan_mbi.Type == MEM_MAPPED) {
@@ -441,15 +455,6 @@ MapHolder::MapHolder(void* mapped_address) {
         scan += scan_mbi.RegionSize;
     }
     m_size = m_total_va_size = m_file_mapped_size = static_cast<size_t>(scan - static_cast<char*>(m_data));
-
-    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_ZERO_ID);
-    auto fh = ::OpenFileMappingW(FILE_MAP_READ, FALSE, shared_memory_name.c_str());
-    if (fh == NULL) {
-        throw std::runtime_error{"Cannot open shared memory object: " + ov::util::path_to_string(shared_memory_name) +
-                                 " error: " + std::to_string(::GetLastError())};
-    }
-
-    m_handle = HandleHolder{fh};
     m_is_view = true;
 }
 
@@ -696,7 +701,15 @@ void MapHolder::setup(HANDLE file_handle, size_t offset, size_t size, bool no_pl
     }
 
     // Create a read-only file-mapping object for the whole file.
-    const std::wstring shared_memory_name = std::wstring(SHM_NAME_PREFIX) + std::to_wstring(SHM_LOCAL_ID++);
+    std::wstring file_path;
+    file_path.resize(MAX_PATH);
+    if (::GetFinalPathNameByHandleW(file_handle, file_path.data(), MAX_PATH, VOLUME_NAME_DOS) == 0) {
+        return;
+    }
+
+    const std::filesystem::path path(file_path);
+    const std::wstring shared_memory_name =
+        std::wstring(SHM_NAME_PREFIX) + path.stem().wstring() + path.extension().wstring();
     m_handle =
         HandleHolder{::CreateFileMappingW(file_handle, nullptr, PAGE_READONLY, 0, 0, shared_memory_name.c_str())};
     if (!m_handle.valid()) {
@@ -758,26 +771,7 @@ bool MapHolder::remap_placeholder(HANDLE proc, char* base, size_t size) {
     const size_t va_offset = base - m_view_base;
     const auto file_off = static_cast<ULONG64>(m_aligned_offset + va_offset);
 
-    HandleHolder handle = std::move(m_handle);
-    PVOID v = NULL;
-    size_t shm_id = 0;
-    while (shm_id != SHM_LOCAL_ID != 0 ? SHM_LOCAL_ID : SHM_MAX_ID) {  // small optimization if we have local id
-        v = replace_placeholder(api, handle.get(), proc, base, file_off, size);
-        if (v != NULL) {
-            break;
-        }
-
-        const std::wstring shared_memory_name = SHM_NAME_PREFIX + std::to_wstring(++shm_id);
-        HANDLE fh = ::OpenFileMappingW(FILE_MAP_READ, FALSE, shared_memory_name.c_str());
-        if (fh == NULL) {
-            break;
-        }
-        m_handle = HandleHolder{fh};
-    }
-    if (m_handle.get() == INVALID_HANDLE_VALUE) {
-        m_handle = std::move(handle);
-    }
-
+    const auto v = replace_placeholder(api, m_handle.get(), proc, base, file_off, size);
     return v == base;
 }
 
@@ -899,7 +893,7 @@ std::pair<char*, char*> MapHolder::compute_evict_range(size_t offset, size_t siz
     // Require placeholder path, API availability, and a live VEH (eviction without VEH
     // would leave inaccessible placeholders on the next access).
     if (!m_view_base || m_total_va_size == 0 || !PlaceholderAPI::instance().m_available ||
-        !MmapVehRegistry::instance().has_veh())
+        (!m_is_view && !MmapVehRegistry::instance().has_veh()))
         return {};
 
     // Clamp offset and size to [0, m_size) to prevent size_t overflow in subsequent arithmetic.
@@ -1028,6 +1022,7 @@ std::shared_ptr<ov::MappedMemory> load_mmap_object(FileHandle handle, size_t off
 }
 
 void hint_evict(void* address, size_t size) {
+    // return;
     auto viewMapHolder = MapHolder(address);
     viewMapHolder.hint_evict(static_cast<size_t>(reinterpret_cast<char*>(address) - viewMapHolder.data()), size);
 }

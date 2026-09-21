@@ -71,12 +71,15 @@ std::shared_ptr<ov::ICompiledModel> import_model_npuw(std::istream& stream,
                                                       std::shared_ptr<const ov::IPlugin> pluginSO) {
     const auto use_npuw_it = properties.find(ov::intel_npu::use_npuw.name());
     const bool npuw_enabled = use_npuw_it == properties.end() || use_npuw_it->second.as<bool>();
-    constexpr const char* npuw_disabled_message =
-        "The blob was exported via NPUW, but NPU_USE_NPUW is disabled.";
+    constexpr const char* npuw_disabled_message = "The blob was exported via NPUW, but NPU_USE_NPUW is disabled.";
 
     if (const auto header = ov::npuw::orc::is_orc(stream);
         header.has_value() && header->schema_uuid == ov::npuw::orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA) {
         OPENVINO_ASSERT(npuw_enabled, npuw_disabled_message);
+        try {
+            return ov::npuw::GQACompiledModel::import_model(stream, pluginSO, properties);
+        } catch (...) {
+        }
         return ov::npuw::CompiledModel::import_model(stream, pluginSO, properties);
     }
 
@@ -93,8 +96,6 @@ std::shared_ptr<ov::ICompiledModel> import_model_npuw(std::istream& stream,
 
             if (compiled_model_indicator == NPUW_FLUX2_COMPILED_MODEL_INDICATOR) {
                 return ov::npuw::Flux2CompiledModel::import_model(stream, pluginSO, properties);
-            } else if (compiled_model_indicator == NPUW_GQA_COMPILED_MODEL_INDICATOR) {
-                return ov::npuw::GQACompiledModel::import_model(stream, pluginSO, properties);
             } else if (compiled_model_indicator == NPUW_LLM_COMPILED_MODEL_INDICATOR) {
                 // Properties are required for ov::weights_path
                 return ov::npuw::LLMCompiledModel::import_model(stream, pluginSO, properties);

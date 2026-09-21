@@ -16,6 +16,8 @@
 #include "npuw_transformations/untangle_dq_scale.hpp"
 #include "openvino/core/version.hpp"
 #include "openvino/runtime/properties.hpp"
+#include "orc.hpp"
+#include "orc/schema_npuw.hpp"
 #include "serialization.hpp"
 
 namespace {
@@ -216,14 +218,10 @@ ov::npuw::GQACompiledModel::GQACompiledModel(PreparedState prepared,
 }
 
 void ov::npuw::GQACompiledModel::export_model(std::ostream& stream) const {
-    using namespace ov::npuw::s11n;
-    write(stream, NPUW_SERIALIZATION_INDICATOR);
-    write(stream, NPUW_GQA_COMPILED_MODEL_INDICATOR);
-    write(stream, OPENVINO_VERSION_MAJOR);
-    write(stream, OPENVINO_VERSION_MINOR);
-    write(stream, OPENVINO_VERSION_PATCH);
-    write(stream, std::string(NPUW_SERIALIZATION_VERSION));
-    m_compiled_model->export_model(stream);
+    ov::npuw::orc::write_file_header(stream, ov::npuw::orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA);
+    ov::npuw::orc::with_section(stream, kOrcType, kOrcVersion, ov::npuw::orc::SectionFlags{0ull}, [&] {
+        m_compiled_model->export_model(stream);
+    });
 }
 
 std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::GQACompiledModel::import_model(
@@ -233,47 +231,38 @@ std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::GQACompiledModel::import_mod
     LOG_INFO("Deserializing GQACompiledModel...");
     LOG_BLOCK();
 
-    using namespace ov::npuw::s11n;
+    const auto saved = stream.tellg();
+    struct ScopedSeek {
+        std::istream& m_stream;
+        std::streampos m_saved;
+        bool m_deactivated = false;
+        ScopedSeek(std::istream& stream, std::streampos saved) : m_stream(stream), m_saved(saved) {}
+        ~ScopedSeek() {
+            if (!m_deactivated) {
+                m_stream.clear();
+                m_stream.seekg(m_saved);
+            }
+        }
+    } scoped_seek(stream, saved);
+    const auto header = orc::read_file_header(stream);
+    OPENVINO_ASSERT(header.schema_uuid == orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA,
+                    "Unsupported ORC schema for NPUW GQACompiledModel");
 
-    ov::npuw::s11n::IndicatorType serialization_indicator;
-    read(stream, serialization_indicator);
-    NPUW_ASSERT(serialization_indicator == NPUW_SERIALIZATION_INDICATOR);
-
-    ov::npuw::s11n::IndicatorType gqa_indicator;
-    read(stream, gqa_indicator);
-    NPUW_ASSERT(gqa_indicator == NPUW_GQA_COMPILED_MODEL_INDICATOR);
-
-    int vmajor, vminor, vpatch;
-    std::string s11n_version;
-    read(stream, vmajor);
-    read(stream, vminor);
-    read(stream, vpatch);
-    read(stream, s11n_version);
-
-    if (vmajor != OPENVINO_VERSION_MAJOR || vminor != OPENVINO_VERSION_MINOR || vpatch != OPENVINO_VERSION_PATCH ||
-        s11n_version != std::string(NPUW_SERIALIZATION_VERSION)) {
-        OPENVINO_THROW("GQA blob was serialized with a different OV version (",
-                       vmajor,
-                       '.',
-                       vminor,
-                       '.',
-                       vpatch,
-                       " / NPUW s11n ",
-                       s11n_version,
-                       "); current is ",
-                       OPENVINO_VERSION_MAJOR,
-                       '.',
-                       OPENVINO_VERSION_MINOR,
-                       '.',
-                       OPENVINO_VERSION_PATCH,
-                       " / NPUW s11n ",
-                       NPUW_SERIALIZATION_VERSION);
-    }
-
-    // The rest of the stream is the inner CompiledModel ORC blob.
-    // After import it is fully self-contained; no outer GQA wrapper is needed
-    // because the partitioning is already baked in and port mappings are consistent.
-    return ov::npuw::CompiledModel::import_model(stream, plugin, properties);
+    orc::ScopedReadSection root(stream);
+    OPENVINO_ASSERT(root.header().type == kOrcType, "Not a GQA ORC blob");
+    OPENVINO_ASSERT(root.header().version <= kOrcVersion,
+                    "GQA blob was produced by a newer NPUW (section version ",
+                    root.header().version,
+                    "; this build supports up to ",
+                    kOrcVersion,
+                    ")");
+    OPENVINO_ASSERT(!orc::has_flag(root.header().flags, orc::SectionFlag::LEAF),
+                    "Unsupported ORC NPUW GQA root section");
+    stream.seekg(saved);
+    auto inner = CompiledModel::import_model(stream, plugin, properties);
+    root.expect_end();
+    scoped_seek.m_deactivated = true;
+    return inner;
 }
 
 std::shared_ptr<const ov::Model> ov::npuw::GQACompiledModel::get_runtime_model() const {

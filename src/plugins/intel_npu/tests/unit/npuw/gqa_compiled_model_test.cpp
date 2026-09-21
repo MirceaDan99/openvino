@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "gqa_compiled_model.hpp"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -10,16 +12,15 @@
 #include <string>
 #include <vector>
 
-#include "gqa_compiled_model.hpp"
 #include "llm_test_helpers.hpp"
 #include "openvino/core/node_vector.hpp"
 #include "openvino/op/constant.hpp"
-#include "openvino/op/convolution.hpp"
 #include "openvino/op/convert.hpp"
+#include "openvino/op/convolution.hpp"
 #include "openvino/op/fake_quantize.hpp"
 #include "openvino/op/group_query_attention.hpp"
-#include "openvino/op/multiply.hpp"
 #include "openvino/op/matmul.hpp"
+#include "openvino/op/multiply.hpp"
 #include "openvino/op/parameter.hpp"
 #include "openvino/op/result.hpp"
 #include "openvino/op/subtract.hpp"
@@ -31,9 +32,9 @@
 
 namespace {
 
+using ov::test::npuw::build_llm_test_model;
 using ov::test::npuw::MockSubCompiledModel;
 using ov::test::npuw::NullPlugin;
-using ov::test::npuw::build_llm_test_model;
 
 template <class Op>
 std::size_t count_ops(const std::shared_ptr<ov::Model>& model) {
@@ -79,10 +80,11 @@ enum class PositionSignal {
     SeqLenPair,
 };
 
-std::shared_ptr<ov::Model> build_full_gqa_transformer_model(int64_t num_heads = 4,
-                                                            int64_t kv_num_heads = 2,
-                                                            bool do_rotary = true,
-                                                            PositionSignal position_signal = PositionSignal::PositionIds) {
+std::shared_ptr<ov::Model> build_full_gqa_transformer_model(
+    int64_t num_heads = 4,
+    int64_t kv_num_heads = 2,
+    bool do_rotary = true,
+    PositionSignal position_signal = PositionSignal::PositionIds) {
     auto input_hidden_states = std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::Shape{1, 4, 16});
     input_hidden_states->set_friendly_name("input_hidden_states");
 
@@ -116,21 +118,20 @@ std::shared_ptr<ov::Model> build_full_gqa_transformer_model(int64_t num_heads = 
     auto cos_cache = std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::Shape{32, 8});
     auto sin_cache = std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::Shape{32, 8});
 
-    auto gqa = std::make_shared<ov::op::internal::GroupQueryAttention>(
-        ov::OutputVector{query,
-                        key,
-                        value,
-                        past_key,
-                        past_value,
-                        seqlens_k,
-                        total_sequence_length,
-                        cos_cache,
-                        sin_cache},
-        num_heads,
-        kv_num_heads,
-        0.0f,
-        do_rotary,
-        false);
+    auto gqa = std::make_shared<ov::op::internal::GroupQueryAttention>(ov::OutputVector{query,
+                                                                                        key,
+                                                                                        value,
+                                                                                        past_key,
+                                                                                        past_value,
+                                                                                        seqlens_k,
+                                                                                        total_sequence_length,
+                                                                                        cos_cache,
+                                                                                        sin_cache},
+                                                                       num_heads,
+                                                                       kv_num_heads,
+                                                                       0.0f,
+                                                                       do_rotary,
+                                                                       false);
 
     auto present_key = std::make_shared<ov::op::v0::Result>(gqa->output(1));
     present_key->set_friendly_name("present_keys_0");
@@ -143,7 +144,7 @@ std::shared_ptr<ov::Model> build_full_gqa_transformer_model(int64_t num_heads = 
         params.push_back(position_ids);
     }
     params.insert(params.end(),
-                 {query, key, value, past_key, past_value, seqlens_k, total_sequence_length, cos_cache, sin_cache});
+                  {query, key, value, past_key, past_value, seqlens_k, total_sequence_length, cos_cache, sin_cache});
     return std::make_shared<ov::Model>(results, params, "gqa_full_transformer_model");
 }
 
@@ -208,23 +209,22 @@ std::shared_ptr<ov::Model> build_gqa_model_with_dynamic_attention_bias(bool dyna
         std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::PartialShape{1, 1, 4, ov::Dimension::dynamic()});
     attention_mask->set_friendly_name("attention_mask");
 
-    auto gqa = std::make_shared<ov::op::internal::GroupQueryAttention>(
-        ov::OutputVector{query,
-                        key,
-                        value,
-                        past_key,
-                        past_value,
-                        seqlens_k,
-                        total_sequence_length,
-                        cos_cache,
-                        sin_cache,
-                        position_ids_placeholder,
-                        attention_mask},
-        4,
-        2,
-        0.0f,
-        true,
-        false);
+    auto gqa = std::make_shared<ov::op::internal::GroupQueryAttention>(ov::OutputVector{query,
+                                                                                        key,
+                                                                                        value,
+                                                                                        past_key,
+                                                                                        past_value,
+                                                                                        seqlens_k,
+                                                                                        total_sequence_length,
+                                                                                        cos_cache,
+                                                                                        sin_cache,
+                                                                                        position_ids_placeholder,
+                                                                                        attention_mask},
+                                                                       4,
+                                                                       2,
+                                                                       0.0f,
+                                                                       true,
+                                                                       false);
 
     auto present_key = std::make_shared<ov::op::v0::Result>(gqa->output(1));
     present_key->set_friendly_name("present_keys_0");
@@ -233,16 +233,16 @@ std::shared_ptr<ov::Model> build_gqa_model_with_dynamic_attention_bias(bool dyna
 
     ov::ResultVector results = {std::make_shared<ov::op::v0::Result>(gqa->output(0)), present_key, present_value};
     ov::ParameterVector params = {input_hidden_states,
-                                 query,
-                                 key,
-                                 value,
-                                 past_key,
-                                 past_value,
-                                 seqlens_k,
-                                 total_sequence_length,
-                                 cos_cache,
-                                 sin_cache,
-                                 attention_mask};
+                                  query,
+                                  key,
+                                  value,
+                                  past_key,
+                                  past_value,
+                                  seqlens_k,
+                                  total_sequence_length,
+                                  cos_cache,
+                                  sin_cache,
+                                  attention_mask};
     auto model = std::make_shared<ov::Model>(results, params, "gqa_attention_bias_model");
     model->validate_nodes_and_infer_types();
     return model;
@@ -258,13 +258,13 @@ std::shared_ptr<ov::Model> build_unqdq_model(const ov::element::Type& input_type
         std::make_shared<ov::op::v0::FakeQuantize>(input, input_low, input_high, output_low, output_high, 256);
     auto quantized_convert = std::make_shared<ov::op::v0::Convert>(fake_quantize, ov::element::u16);
     auto dequantized_convert = std::make_shared<ov::op::v0::Convert>(quantized_convert, ov::element::f32);
-    auto zero_point = std::make_shared<ov::op::v0::Convert>(
-        ov::op::v0::Constant::create(ov::element::u16, ov::Shape{}, {128}),
-        ov::element::f32);
+    auto zero_point =
+        std::make_shared<ov::op::v0::Convert>(ov::op::v0::Constant::create(ov::element::u16, ov::Shape{}, {128}),
+                                              ov::element::f32);
     auto subtract = std::make_shared<ov::op::v1::Subtract>(dequantized_convert, zero_point);
-    auto scale = std::make_shared<ov::op::v0::Convert>(
-        ov::op::v0::Constant::create(ov::element::f16, ov::Shape{}, {0.1f}),
-        ov::element::f32);
+    auto scale =
+        std::make_shared<ov::op::v0::Convert>(ov::op::v0::Constant::create(ov::element::f16, ov::Shape{}, {0.1f}),
+                                              ov::element::f32);
     auto multiply = std::make_shared<ov::op::v1::Multiply>(subtract, scale);
     return std::make_shared<ov::Model>(ov::ResultVector{std::make_shared<ov::op::v0::Result>(multiply)},
                                        ov::ParameterVector{input},
@@ -272,13 +272,11 @@ std::shared_ptr<ov::Model> build_unqdq_model(const ov::element::Type& input_type
 }
 
 std::shared_ptr<ov::Model> build_hidden_states_model(std::size_t tokens) {
-    auto input_hidden_states =
-        std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::Shape{1, tokens, 16});
+    auto input_hidden_states = std::make_shared<ov::op::v0::Parameter>(ov::element::f16, ov::Shape{1, tokens, 16});
     input_hidden_states->set_friendly_name("input_hidden_states");
-    return std::make_shared<ov::Model>(
-        ov::ResultVector{std::make_shared<ov::op::v0::Result>(input_hidden_states)},
-        ov::ParameterVector{input_hidden_states},
-        "gqa_hidden_states_model");
+    return std::make_shared<ov::Model>(ov::ResultVector{std::make_shared<ov::op::v0::Result>(input_hidden_states)},
+                                       ov::ParameterVector{input_hidden_states},
+                                       "gqa_hidden_states_model");
 }
 
 std::shared_ptr<ov::Model> build_conv_to_matmul_model() {
@@ -289,9 +287,9 @@ std::shared_ptr<ov::Model> build_conv_to_matmul_model() {
     auto transpose_in = std::make_shared<ov::op::v1::Transpose>(
         activation,
         ov::op::v0::Constant::create(ov::element::i32, ov::Shape{4}, std::vector<int32_t>{0, 3, 1, 2}));
-    auto scaled_weights = std::make_shared<ov::op::v1::Multiply>(
-        std::make_shared<ov::op::v0::Convert>(weights, ov::element::f32),
-        std::make_shared<ov::op::v0::Convert>(scale, ov::element::f32));
+    auto scaled_weights =
+        std::make_shared<ov::op::v1::Multiply>(std::make_shared<ov::op::v0::Convert>(weights, ov::element::f32),
+                                               std::make_shared<ov::op::v0::Convert>(scale, ov::element::f32));
     auto convolution = std::make_shared<ov::op::v1::Convolution>(transpose_in,
                                                                  scaled_weights,
                                                                  ov::Strides{1, 1},
@@ -313,9 +311,9 @@ std::shared_ptr<ov::Model> build_dumped_gqa_conv_model() {
     auto scale = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::Shape{5120});
 
     auto converted_activation = std::make_shared<ov::op::v0::Convert>(activation, ov::element::f32);
-    auto unsqueezed_activation = std::make_shared<ov::op::v0::Unsqueeze>(
-        converted_activation,
-        ov::op::v0::Constant::create(ov::element::i64, ov::Shape{1}, {1}));
+    auto unsqueezed_activation =
+        std::make_shared<ov::op::v0::Unsqueeze>(converted_activation,
+                                                ov::op::v0::Constant::create(ov::element::i64, ov::Shape{1}, {1}));
     auto transposed_activation = std::make_shared<ov::op::v1::Transpose>(
         unsqueezed_activation,
         ov::op::v0::Constant::create(ov::element::i64, ov::Shape{4}, {0, 3, 1, 2}));
@@ -326,11 +324,11 @@ std::shared_ptr<ov::Model> build_dumped_gqa_conv_model() {
             ov::op::v0::Constant::create(ov::element::i64, ov::Shape{4}, {5120, 1, 1, 1}),
             true));
     auto convolution = std::make_shared<ov::op::v1::Convolution>(transposed_activation,
-                                                                scaled_weights,
-                                                                ov::Strides{1, 1},
-                                                                ov::CoordinateDiff{0, 0},
-                                                                ov::CoordinateDiff{0, 0},
-                                                                ov::Strides{1, 1});
+                                                                 scaled_weights,
+                                                                 ov::Strides{1, 1},
+                                                                 ov::CoordinateDiff{0, 0},
+                                                                 ov::CoordinateDiff{0, 0},
+                                                                 ov::Strides{1, 1});
     auto transpose_out = std::make_shared<ov::op::v1::Transpose>(
         convolution,
         ov::op::v0::Constant::create(ov::element::i64, ov::Shape{4}, {0, 2, 3, 1}));
@@ -387,7 +385,7 @@ private:
 class PropertyForwardingMockCompiledModel final : public ov::npuw::ICompiledModel {
 public:
     PropertyForwardingMockCompiledModel(const std::shared_ptr<ov::Model>& model,
-                                       const std::shared_ptr<const ov::IPlugin>& plugin)
+                                        const std::shared_ptr<const ov::IPlugin>& plugin)
         : ov::npuw::ICompiledModel(model, plugin) {}
 
     void export_model(std::ostream&) const override {}
@@ -412,7 +410,6 @@ private:
 public:
     ov::AnyMap last_set_properties;
 };
-
 
 class GQACompiledModelTest : public ::testing::Test {
 protected:
@@ -465,10 +462,10 @@ TEST_F(GQACompiledModelTest, DisablesOnlinePipelineForCaseV1Models) {
     RecordingFactory recorder;
     std::unique_ptr<ov::npuw::GQACompiledModel> compiled;
 
-    ASSERT_NO_THROW(compiled = create_compiled_model(
-                        build_full_gqa_transformer_model(4, 2, true, PositionSignal::PositionIds),
-                        {},
-                        recorder));
+    ASSERT_NO_THROW(compiled =
+                        create_compiled_model(build_full_gqa_transformer_model(4, 2, true, PositionSignal::PositionIds),
+                                              {},
+                                              recorder));
     ASSERT_NE(compiled, nullptr);
 
     const auto& call = recorder.only_call();
@@ -479,10 +476,10 @@ TEST_F(GQACompiledModelTest, DisablesOnlinePipelineForCaseV0Models) {
     RecordingFactory recorder;
     std::unique_ptr<ov::npuw::GQACompiledModel> compiled;
 
-    ASSERT_NO_THROW(compiled = create_compiled_model(
-                        build_full_gqa_transformer_model(4, 2, true, PositionSignal::SeqLenPair),
-                        {},
-                        recorder));
+    ASSERT_NO_THROW(compiled =
+                        create_compiled_model(build_full_gqa_transformer_model(4, 2, true, PositionSignal::SeqLenPair),
+                                              {},
+                                              recorder));
     ASSERT_NE(compiled, nullptr);
 
     const auto& call = recorder.only_call();
@@ -570,7 +567,8 @@ TEST_F(GQACompiledModelTest, RunsUNQDQBeforeInnerCompilation) {
     RecordingFactory recorder;
     std::unique_ptr<ov::npuw::GQACompiledModel> compiled;
 
-    ASSERT_NO_THROW(compiled = create_compiled_model(build_unqdq_model(ov::element::f16), {{"NPUW_UNQDQ", "YES"}}, recorder));
+    ASSERT_NO_THROW(compiled =
+                        create_compiled_model(build_unqdq_model(ov::element::f16), {{"NPUW_UNQDQ", "YES"}}, recorder));
     ASSERT_NE(compiled, nullptr);
 
     const auto& call = recorder.only_call();
@@ -781,9 +779,9 @@ TEST_F(GQACompiledModelTest, ReshapesDynamicKvCacheToStaticCapacityAtAxis2) {
     // The outer, user-facing model (compiled_model's own ports) is untouched -- it must
     // stay dynamic so the infer request still accepts variable-length KV-cache input.
     EXPECT_TRUE(compiled->inputs().front().get_partial_shape().is_dynamic() ||
-               std::any_of(compiled->inputs().begin(), compiled->inputs().end(), [](const auto& input) {
-                   return input.get_partial_shape().is_dynamic();
-               }));
+                std::any_of(compiled->inputs().begin(), compiled->inputs().end(), [](const auto& input) {
+                    return input.get_partial_shape().is_dynamic();
+                }));
 }
 
 TEST_F(GQACompiledModelTest, ReshapesDynamicKvCacheToStaticCapacityAtAxis3) {
@@ -849,8 +847,7 @@ TEST(GQACompiledModelCopyKvCachePrefixTest, CopiesPrefixAlongAxis2LeftAligned) {
 
     const auto dst_values = to_vec(dst);
     // Head 0: src rows [0..5] copied into dst's first 2 (of 4) rows; head 1 likewise.
-    EXPECT_EQ(std::vector<float>(dst_values.begin(), dst_values.begin() + 6),
-              (std::vector<float>{0, 1, 2, 3, 4, 5}));
+    EXPECT_EQ(std::vector<float>(dst_values.begin(), dst_values.begin() + 6), (std::vector<float>{0, 1, 2, 3, 4, 5}));
     EXPECT_EQ(std::vector<float>(dst_values.begin() + 12, dst_values.begin() + 18),
               (std::vector<float>{6, 7, 8, 9, 10, 11}));
 }
@@ -887,20 +884,16 @@ TEST(GQACompiledModelSerializationTest, RoundTripsOuterModelPortsAndDynamicAxisM
     const std::unordered_map<std::string, size_t> axis_map{{"past_keys_0", 2u}, {"past_values_0", 2u}};
 
     std::stringstream buffer(std::ios::in | std::ios::out | std::ios::binary);
-    ov::npuw::GQACompiledModel::write_port_list(buffer, outer_inputs);
-    ov::npuw::GQACompiledModel::write_port_list(buffer, outer_outputs);
-    {
-        auto writer = ov::npuw::orc::Stream::writer(buffer);
-        writer & axis_map;
-    }
+    auto writer = ov::npuw::orc::Stream::writer(buffer);
+    ov::npuw::GQACompiledModel::write_port_list(writer, outer_inputs);
+    ov::npuw::GQACompiledModel::write_port_list(writer, outer_outputs);
+    writer & axis_map;
 
-    ov::ParameterVector read_parameters = ov::npuw::GQACompiledModel::read_input_port_list(buffer);
-    ov::NodeVector read_results = ov::npuw::GQACompiledModel::read_output_port_list(buffer);
+    auto reader = ov::npuw::orc::Stream::reader(buffer);
+    ov::ParameterVector read_parameters = ov::npuw::GQACompiledModel::read_input_port_list(reader);
+    ov::NodeVector read_results = ov::npuw::GQACompiledModel::read_output_port_list(reader);
     std::unordered_map<std::string, size_t> read_axis_map;
-    {
-        auto reader = ov::npuw::orc::Stream::reader(buffer);
-        reader & read_axis_map;
-    }
+    reader & read_axis_map;
 
     ASSERT_EQ(read_parameters.size(), outer_inputs.size());
     ASSERT_EQ(read_results.size(), outer_outputs.size());
@@ -956,8 +949,10 @@ TEST(GQACompiledModelSerializationTest, RoundTripsTensorNamesSeparatelyFromFrien
     std::vector<ov::Output<const ov::Node>> ports{param->output(0)};
 
     std::stringstream buffer(std::ios::in | std::ios::out | std::ios::binary);
-    ov::npuw::GQACompiledModel::write_port_list(buffer, ports);
-    auto read_back = ov::npuw::GQACompiledModel::read_input_port_list(buffer);
+    auto writer = ov::npuw::orc::Stream::writer(buffer);
+    ov::npuw::GQACompiledModel::write_port_list(writer, ports);
+    auto reader = ov::npuw::orc::Stream::reader(buffer);
+    auto read_back = ov::npuw::GQACompiledModel::read_input_port_list(reader);
 
     ASSERT_EQ(read_back.size(), 1u);
     EXPECT_EQ(read_back[0]->get_friendly_name(), "past_keys_0");
@@ -974,8 +969,10 @@ TEST(GQACompiledModelSerializationTest, RoundTripsBoundedDynamicDimensionAndNonF
     std::vector<ov::Output<const ov::Node>> ports{param->output(0)};
 
     std::stringstream buffer(std::ios::in | std::ios::out | std::ios::binary);
-    ov::npuw::GQACompiledModel::write_port_list(buffer, ports);
-    auto read_back = ov::npuw::GQACompiledModel::read_input_port_list(buffer);
+    auto writer = ov::npuw::orc::Stream::writer(buffer);
+    ov::npuw::GQACompiledModel::write_port_list(writer, ports);
+    auto reader = ov::npuw::orc::Stream::reader(buffer);
+    auto read_back = ov::npuw::GQACompiledModel::read_input_port_list(reader);
 
     ASSERT_EQ(read_back.size(), 1u);
     EXPECT_EQ(read_back[0]->get_friendly_name(), "attention_bias");

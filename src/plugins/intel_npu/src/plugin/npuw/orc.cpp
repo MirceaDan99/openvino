@@ -10,6 +10,8 @@
 #include <ostream>
 #include <sstream>
 
+#include "serialization.hpp"
+
 namespace {
 
 constexpr std::array<std::uint8_t, 8> ORC_FILE_MAGIC = {'N', 'P', 'U', 'W', 'O', 'R', 'C', '\0'};

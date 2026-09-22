@@ -645,6 +645,9 @@ void ov::npuw::GQACompiledModel::export_model(std::ostream& stream) const {
         GQA_TRACE("    '" << name << "' -> axis " << axis);
     }
 
+    NPUW_ASSERT(std::dynamic_pointer_cast<ov::npuw::CompiledModel>(m_inner_compiled_model) != nullptr &&
+                "Cannot cast `ov::npuw::ICompiledModel` to `ov::npuw::CompiledModel`");
+
     auto outer_inputs = inputs();
     auto outer_outputs = outputs();
     ov::npuw::orc::write_file_header(stream, ov::npuw::orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA);
@@ -659,7 +662,7 @@ void ov::npuw::GQACompiledModel::export_model(std::ostream& stream) const {
                       << m_dynamic_kv_cache_axes.size()
                       << " dynamic-axis entries; delegating to inner m_inner_compiled_model->export_model()");
         });
-        m_inner_compiled_model->export_model(stream);
+        std::dynamic_pointer_cast<ov::npuw::CompiledModel>(m_inner_compiled_model)->write_container(stream);
     });
     LOG_INFO("Done");
     GQA_TRACE("GQACompiledModel::export_model() done");
@@ -720,7 +723,8 @@ std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::GQACompiledModel::import_mod
     // The rest of the stream is the inner CompiledModel ORC blob. It is fully
     // self-contained: partitioning is already baked in and port mappings are
     // consistent, positionally matching outer_parameters/outer_results above.
-    auto inner_compiled_model = ov::npuw::CompiledModel::import_model(stream, plugin, properties);
+    auto inner_compiled_model = ov::npuw::CompiledModel::import_container(stream, plugin, properties);
+    root.expect_end();
     NPUW_ASSERT(inner_compiled_model != nullptr);
     GQA_TRACE("    inner CompiledModel imported @ "
               << inner_compiled_model.get()

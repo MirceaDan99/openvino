@@ -220,7 +220,7 @@ ov::npuw::GQACompiledModel::GQACompiledModel(PreparedState prepared,
 void ov::npuw::GQACompiledModel::export_model(std::ostream& stream) const {
     ov::npuw::orc::write_file_header(stream, ov::npuw::orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA);
     ov::npuw::orc::with_section(stream, kOrcType, kOrcVersion, ov::npuw::orc::SectionFlags{0ull}, [&] {
-        m_compiled_model->export_model(stream);
+        m_compiled_model->write_container(stream);
     });
 }
 
@@ -231,19 +231,6 @@ std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::GQACompiledModel::import_mod
     LOG_INFO("Deserializing GQACompiledModel...");
     LOG_BLOCK();
 
-    const auto saved = stream.tellg();
-    struct ScopedSeek {
-        std::istream& m_stream;
-        std::streampos m_saved;
-        bool m_deactivated = false;
-        ScopedSeek(std::istream& stream, std::streampos saved) : m_stream(stream), m_saved(saved) {}
-        ~ScopedSeek() {
-            if (!m_deactivated) {
-                m_stream.clear();
-                m_stream.seekg(m_saved);
-            }
-        }
-    } scoped_seek(stream, saved);
     const auto header = orc::read_file_header(stream);
     OPENVINO_ASSERT(header.schema_uuid == orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA,
                     "Unsupported ORC schema for NPUW GQACompiledModel");
@@ -258,10 +245,9 @@ std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::GQACompiledModel::import_mod
                     ")");
     OPENVINO_ASSERT(!orc::has_flag(root.header().flags, orc::SectionFlag::LEAF),
                     "Unsupported ORC NPUW GQA root section");
-    stream.seekg(saved);
-    auto inner = CompiledModel::import_model(stream, plugin, properties);
+
+    auto inner = CompiledModel::import_container(stream, plugin, properties);
     root.expect_end();
-    scoped_seek.m_deactivated = true;
     return inner;
 }
 

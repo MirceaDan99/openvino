@@ -39,6 +39,14 @@ public:
                                                             const std::shared_ptr<const ov::IPlugin>& plugin,
                                                             const ov::AnyMap& properties);
     ICompiledModel(const std::shared_ptr<ov::Model>& model, const std::shared_ptr<const ov::IPlugin>& plugin);
+
+    static std::shared_ptr<ICompiledModel> import(std::istream& stream,
+                                                  const std::shared_ptr<const ov::IPlugin>& pluginSO,
+                                                  const ov::AnyMap& properties);
+
+    virtual void write_container(std::ostream& stream) const {
+        OPENVINO_THROW_NOT_IMPLEMENTED("`ICompiledModel::write_container` is not implemented");
+    }
 };
 
 // Minimum interface consumed by LLMCompiledModel from its sub-compiled models
@@ -134,6 +142,10 @@ public:
     void finalize_weights_bank() override;
     void reconstruct_closure() override;
     void serialize(std::ostream& stream, const s11n::CompiledContext& ctx) const override;
+    static std::shared_ptr<CompiledModel> import_container(std::istream& stream,
+                                                           const std::shared_ptr<const ov::IPlugin>& pluginSO,
+                                                           const ov::AnyMap& properties);
+    void write_container(std::ostream& stream) const override;
 
 private:
     // FIXME: This class has many friends..

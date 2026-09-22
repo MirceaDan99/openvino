@@ -343,6 +343,51 @@ std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::ICompiledModel::create(
     return compiled_model;
 }
 
+std::shared_ptr<ov::npuw::ICompiledModel> ov::npuw::ICompiledModel::import(
+    std::istream& stream,
+    const std::shared_ptr<const ov::IPlugin>& pluginSO,
+    const ov::AnyMap& properties) {
+    if (auto header = ov::npuw::orc::is_orc(stream);
+        header.has_value() && header->schema_uuid == ov::npuw::orc::schema_npuw::NPUW_ORC_PARTITIONED_SCHEMA) {
+        auto typeID = ov::npuw::orc::peek_blob_id(stream);
+        switch (typeID) {
+        case ov::npuw::GQACompiledModel::kOrcType:
+            return ov::npuw::GQACompiledModel::import_model(stream, pluginSO, properties);
+        case ov::npuw::CompiledModel::kOrcType:
+            return ov::npuw::CompiledModel::import_model(stream, pluginSO, properties);
+        default:
+            NPUW_ASSERT(false && "Couldn't determine blob type from ORC root section");
+        }
+    }
+
+    auto stream_start_pos = stream.tellg();
+    ov::npuw::s11n::IndicatorType serialization_indicator;
+    if (ov::npuw::orc::try_read_bytes(stream, serialization_indicator.data(), serialization_indicator.size()) &&
+        serialization_indicator == NPUW_SERIALIZATION_INDICATOR) {
+        ov::npuw::s11n::IndicatorType compiled_model_indicator;
+        if (ov::npuw::orc::try_read_bytes(stream, compiled_model_indicator.data(), compiled_model_indicator.size())) {
+            stream.clear();
+            stream.seekg(stream_start_pos);
+
+            if (compiled_model_indicator == NPUW_FLUX2_COMPILED_MODEL_INDICATOR) {
+                return ov::npuw::Flux2CompiledModel::import_model(stream, pluginSO, properties);
+            } else if (compiled_model_indicator == NPUW_LLM_COMPILED_MODEL_INDICATOR) {
+                // Properties are required for ov::weights_path
+                return ov::npuw::LLMCompiledModel::import_model(stream, pluginSO, properties);
+            } else if (compiled_model_indicator == NPUW_COMPILED_MODEL_INDICATOR) {
+                NPUW_ASSERT(false &&
+                            "Legacy flat NPUW CompiledModel blobs are no longer supported. Re-export the model "
+                            "with the current ORC serializer.");
+            } else {
+                NPUW_ASSERT(false && "Couldn't deserialize NPUW blob - fatal error!");
+            }
+        }
+    }
+    NPUW_ASSERT(false && "Stream is not an NPUW blob");
+}
+
+#undef REGISTER_LOADER
+
 ov::npuw::ICompiledModel::ICompiledModel(const std::shared_ptr<ov::Model>& model,
                                          const std::shared_ptr<const ov::IPlugin>& plugin)
     : ov::ICompiledModel(model, plugin) {}
@@ -1440,6 +1485,13 @@ void ov::npuw::CompiledModel::serialize_orc_container(std::ostream& stream,
     });
 }
 
+std::shared_ptr<ov::npuw::CompiledModel> ov::npuw::CompiledModel::import_container(
+    std::istream& stream,
+    const std::shared_ptr<const ov::IPlugin>& plugin,
+    const ov::AnyMap& properties) {
+    return deserialize_orc_container(stream, plugin, properties, true, {});
+}
+
 std::shared_ptr<ov::npuw::CompiledModel> ov::npuw::CompiledModel::deserialize_orc(
     std::istream& stream,
     const std::shared_ptr<const ov::IPlugin>& plugin,
@@ -1753,6 +1805,10 @@ void ov::npuw::CompiledModel::validate_import_routing_tables(const std::shared_p
         ensure_output_port_index("m_submodels_input_to_prev_output", routing_idx, kvp.second, false);
         ++routing_idx;
     }
+}
+
+void ov::npuw::CompiledModel::write_container(std::ostream& sream) const {
+    serialize_orc_container(sream, true, get_encrypt_callback(m_non_npuw_props));
 }
 
 void ov::npuw::CompiledModel::serialize(std::ostream& stream, const ov::npuw::s11n::CompiledContext& enc_ctx) const {

@@ -2457,6 +2457,7 @@ std::string getRefBlobFilePath(const std::string& blobNamePrefix, const std::vec
 
 static int runSingleImageTest() {
     std::cout << "Run single image test" << std::endl;
+    int exitCode = EXIT_SUCCESS;
     try {
         // Flow of Single Image Test
         // 1. Parse input and output precisions (if given)
@@ -2762,6 +2763,8 @@ static int runSingleImageTest() {
         const std::string blobNamePrefix =
                 FLAGS_blob_name_prefix.empty() ? netFileName : cleanName(FLAGS_blob_name_prefix);
 
+        const std::vector<std::string> dataShapes = splitStringList(FLAGS_data_shape, ';');
+
         for (size_t numberOfTestCase = 0; numberOfTestCase < inputFilesPerCase.size(); ++numberOfTestCase) {
             const auto inputsInfo = compiledModel.inputs();
             const auto outputsInfo = compiledModel.outputs();
@@ -2778,12 +2781,13 @@ static int runSingleImageTest() {
             TensorMap inTensors;
             size_t inputInd = 0;
             std::vector<std::string> dumpedInputsPaths;
+            const std::vector<std::string> caseDataShapes = splitStringList(dataShapes.at(numberOfTestCase), ' ');
             TensorDescriptorMap inputDescriptors;  // Several metrics require the input metadata
 
             // Load the input data
             for (const auto& inputInfo : inputsInfo) {
                 const auto& shape = inputInfo.get_partial_shape();
-                const auto dataShape = shape.is_static() ? shape.get_shape() : parseDataShape(FLAGS_data_shape);
+                const auto dataShape = shape.is_static() ? shape.get_shape() : parseDataShape(caseDataShapes.at(inputInd));
                 const ov::element::Type& precision = inputInfo.get_element_type();
 
                 // Determine the input layout
@@ -3001,9 +3005,11 @@ static int runSingleImageTest() {
                 }
 
                 auto testFunc = testMethodsIt->second;
-                auto [message, exitCode] = resultStatuses[testFunc(filteredOutputTensors, filteredReferenceTensors, filteredOutputLayouts)];
+                auto [message, l_exitCode] = resultStatuses[testFunc(filteredOutputTensors, filteredReferenceTensors, filteredOutputLayouts)];
                 std::cout << message << std::endl;
-                return exitCode;
+                if (l_exitCode != EXIT_SUCCESS) {
+                    exitCode = l_exitCode;
+                }
             } else {
                 size_t outputInd = 0;
                 for (const auto& out : compiledModel.outputs()) {
@@ -3025,7 +3031,7 @@ static int runSingleImageTest() {
         return EXIT_FAILURE;
     }
 
-    return EXIT_SUCCESS;
+    return exitCode;
 }
 
 int main(int argc, char* argv[]) {

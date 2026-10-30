@@ -1,0 +1,116 @@
+{
+  "networks": [
+    {
+      "_comment": "Used by test_import_blob.py",
+      "ir": "ov264rc2/whisper/whisper-tiny_fp16_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py and test_speculative_decode.py",
+      "ir": "ov264rc2/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py and test_prefix_caching.py",
+      "ir": "ov264rc2/LLM/Llama-3.2-3B-Instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py and test_prefix_caching.py",
+      "ir": "ov264rc2/LLM/Llama-3.2-3B-Instruct_int4_sym_group128_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py and test_prefix_caching.py",
+      "ir": "ov264rc2/LLM/Qwen2.5-1.5B-Instruct_int4_sym_group128_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_chat_history_pyramid.py, test_import_blob.py and test_prefix_caching.py",
+      "ir": "ov264rc2/LLM/TinyLlama-1.1B-Chat-v1.0_int4_sym_group128_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py and test_speculative_decode.py",
+      "ir": "ov264rc2/LLM/Phi-3.5-mini-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py",
+      "ir": "ov264rc2/LLM/gpt-oss-20b_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py",
+      "ir": "ov264rc2/LLM/Qwen2.5-Coder-0.5B-Instruct_fp16_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_import_blob.py",
+      "ir": "ov264rc2/LLM/Qwen3-0.6B_int4_sym_group128_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_speculative_decode.py",
+      "ir": "ov264rc2/LLM/Phi-3-mini-FastDraft-50M-int8-sym-ov"
+    },
+    {
+      "_comment": "Used by test_audio_quality_sweep.py",
+      "ir": "ov264rc2/TTS/Kokoro-82M_fp16_dyn"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov253rc1/LLM/DeepSeek-R1-Distill-Qwen-1.5B_int4_sym_group128_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov253rc1/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov254rc1/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov260rc1/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov261rc1/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov262/LLM/Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov254rc1/LLM/Google-Gemma-2-2B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov260rc1/LLM/Google-Gemma-2-2B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov261rc1/LLM/Google-Gemma-2-2B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov262/LLM/Google-Gemma-2-2B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov254rc1/VLM/Google-Gemma-3-4B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov260rc1/VLM/Google-Gemma-3-4B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov261rc1/VLM/Google-Gemma-3-4B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov262/VLM/Google-Gemma-3-4B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov262/VLM/Google-Gemma-4-E4B-it_int4_sym_group-1_dyn_stateful"
+    },
+    {
+      "_comment": "Used by test_sliding_window.py",
+      "ir": "ov262/VLM/Google-Gemma-4-E2B-it_int4_sym_group-1_dyn_stateful"
+    }
+  ]
+}

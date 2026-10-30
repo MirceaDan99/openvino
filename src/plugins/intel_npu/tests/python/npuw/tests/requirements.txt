@@ -1,0 +1,10 @@
+pytest
+numpy
+pytest-html
+openvino-genai
+sentence-transformers
+transformers<5  # kokoro albert tracing breaks on transformers>=5 masking_utils BC path
+kokoro
+librosa # for audio processing
+mel-cepstral-distance # for MCD calculation
+scipy

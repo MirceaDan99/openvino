@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 from openvino_genai import LLMPipeline, WhisperPipeline
@@ -7,9 +7,15 @@ import pytest
 import time
 import shutil
 import stat
-from pathlib import Path
 from threading import Thread
-from utils import get_model_dir
+from utils import (
+    default_whisper_config,
+    get_model_dir,
+    get_whisper_audio_path,
+    get_whisper_model_root,
+    read_wav_for_whisper,
+    get_agent_ram_gb,
+)
 
 generate_hint_config = ["BEST_PERF", "FAST_COMPILE"]
 blob_with_weights = [True, False]
@@ -49,7 +55,6 @@ default_config = {"NPU_BYPASS_UMD_CACHING": "YES", "NPUW_DEVICES": "NPU", "MAX_P
 default_whisper_models_list = [
     "whisper-tiny_fp16_dyn_stateful"
 ]
-default_whisper_config = {"NPU_BYPASS_UMD_CACHING": "YES", "NPUW_DEVICES": "NPU"}
 
 temp_path = ".\\tmp_blobs"
 
@@ -80,39 +85,28 @@ def get_moe_model_name():
 
 
 def is_platform_NPU3720():
-    return 'NPUW_TEST_PLATFORM' in os.environ and str(os.environ['NPUW_TEST_PLATFORM']) == 'NPU3720'
+    return 'NPUW_TEST_PLATFORM' in os.environ and \
+        'NPU3720' in str(os.environ['NPUW_TEST_PLATFORM'])
 
 
 def is_platform_NPU4000_or_older():
-    if 'NPUW_TEST_PLATFORM' not in os.environ:
-        return False
-    return str(os.environ['NPUW_TEST_PLATFORM']) in ('NPU3720', 'NPU4000')
+    return 'NPUW_TEST_PLATFORM' in os.environ and \
+        any(abr in str(os.environ['NPUW_TEST_PLATFORM']) for abr in ('NPU3720', 'NPU4000'))
 
 
-def get_whisper_model_root():
-    for subdir in ["whisper", "Whisper"]:
-        candidate = get_model_dir(subdir)
-        if os.path.isdir(candidate):
-            return candidate
+_agent_ram_gb = get_agent_ram_gb()
+# Note: low RAM agents (< 30GB) fail the GPT-OSS import tests with "Tensor was not initialized" or import timeout.
+# Other models may be affected as well, under investigation.
+skip_gpt_oss_low_ram = pytest.mark.skipif(
+    _agent_ram_gb is not None and _agent_ram_gb < 30,
+    reason=f"GPT-OSS import blob tests need >= 30GB RAM (agent has {_agent_ram_gb}GB)",
+)
 
 
 def get_whisper_model_names():
     if 'NPUW_TEST_MODELS' in os.environ:
         return str(os.environ['NPUW_TEST_MODELS']).split(',')
     return default_whisper_models_list
-
-
-def get_whisper_audio_path():
-    if 'NPUW_TEST_WHISPER_AUDIO' in os.environ:
-        return str(os.environ['NPUW_TEST_WHISPER_AUDIO'])
-
-    return str(Path(__file__).resolve().parents[2] / "samples" / "whisper" / "media" / "how_are_you_doing_today.wav")
-
-
-def read_wav_for_whisper(path):
-    librosa = pytest.importorskip("librosa")
-    raw_speech, _ = librosa.load(path, sr=16000)
-    return raw_speech.tolist()
 
 
 def get_whisper_weights_size(model_path):
@@ -303,6 +297,7 @@ def test_import_cache_dir_attention_modes(with_weights, attention_cfg, validate_
 
 
 @pytest.mark.skipif(is_platform_NPU4000_or_older(), reason="MoE export/import requires platform newer than NPU4000")
+@skip_gpt_oss_low_ram
 @pytest.mark.parametrize("with_weights", blob_with_weights, ids=["with_weights", "weightless"])
 def test_import_aot_moe_gpt_oss(with_weights, validate_environment):
     cfg = {"GENERATE_HINT": "FAST_COMPILE", "MAX_PROMPT_LEN": 128}
@@ -311,6 +306,7 @@ def test_import_aot_moe_gpt_oss(with_weights, validate_environment):
 
 
 @pytest.mark.skipif(is_platform_NPU4000_or_older(), reason="MoE export/import requires platform newer than NPU4000")
+@skip_gpt_oss_low_ram
 @pytest.mark.parametrize("with_weights", blob_with_weights, ids=["with_weights", "weightless"])
 def test_import_cache_dir_moe_gpt_oss(with_weights, validate_environment):
     cfg = {"GENERATE_HINT": "FAST_COMPILE", "MAX_PROMPT_LEN": 128}

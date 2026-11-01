@@ -226,6 +226,9 @@ def cleanup_memory():
 def validate_environment():
     """Validate test environment is properly set up."""
     try:
+        model_dir = get_model_dir("LLM")
+        assert os.path.exists(model_dir), f"Model directory does not exist: {model_dir}"
+
         # Check if at least one test model exists
         model_names = get_model_names()
         found_models = []

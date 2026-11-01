@@ -1,5 +1,6 @@
 pytest
 numpy
+Pillow # for decoding the ResNet-50 test picture
 pytest-html
 openvino-genai
 sentence-transformers

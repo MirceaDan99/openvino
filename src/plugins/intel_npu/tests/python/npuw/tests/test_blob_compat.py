@@ -41,7 +41,7 @@ def _venv_python(venv_dir):
 @pytest.fixture(scope="module")
 def model(tmp_path_factory):
     """(ov.Model, model_xml, weights_path, input_tensor) for the hardcoded ResNet-50."""
-    out = Path(get_model_dir("resnet-50"))
+    out = Path(get_model_dir("HF_input/reference_models/resnet-50"))
 
     model_xml = next(out.rglob("*.xml"))
     ov_model = ov.Core().read_model(str(model_xml))

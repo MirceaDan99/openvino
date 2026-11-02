@@ -20,9 +20,6 @@ MAX_NEW_TOKENS = 256
 # Path to the committed golden reference answers (generated once via --generate-references).
 REFERENCES_FILE = Path(__file__).parent / "sliding_window_references.json"
 
-# Model Location in Artifactory
-FOLDER = "experiments/sai-npu-experience/integration_tests/swa"
-
 # Models which appear in multiple releases
 PHI3_MINI = "Phi-3-mini-4k-instruct_int4_sym_group-1_dyn_stateful"
 GEMMA2_2B = "Google-Gemma-2-2B-it_int4_sym_group-1_dyn_stateful"
@@ -38,29 +35,29 @@ _session_results = []
 sliding_window_models = [
     # DeepSeek-R1-Distill-Qwen-1.5B — ov253rc1 only (SWA not present in newer packages, so only ov253rc1 is relevant)
     pytest.param(("DeepSeek-R1-Distill-Qwen-1.5B_int4_sym_group128_dyn_stateful",
-                 f"{FOLDER}/ov253rc1/LLM", 4096, False), id="deepseek_qwen_1.5b_ov253rc1"),
+                 f"ov253rc1/LLM", 4096, False), id="deepseek_qwen_1.5b_ov253rc1"),
     # Phi-3-mini across all packages
-    pytest.param((PHI3_MINI, f"{FOLDER}/ov253rc1/LLM", 2047, False), id="phi3_mini_ov253rc1"),
-    pytest.param((PHI3_MINI, f"{FOLDER}/ov254rc1/LLM", 2047, False), id="phi3_mini_ov254rc1"),
-    pytest.param((PHI3_MINI, f"{FOLDER}/ov260rc1/LLM", 2047, False), id="phi3_mini_ov260rc1"),
-    pytest.param((PHI3_MINI, f"{FOLDER}/ov261rc1/LLM", 2047, False), id="phi3_mini_ov261rc1"),
-    pytest.param((PHI3_MINI, f"{FOLDER}/ov262/LLM", 2047, False), id="phi3_mini_ov262"),
+    pytest.param((PHI3_MINI, f"ov253rc1/LLM", 2047, False), id="phi3_mini_ov253rc1"),
+    pytest.param((PHI3_MINI, f"ov254rc1/LLM", 2047, False), id="phi3_mini_ov254rc1"),
+    pytest.param((PHI3_MINI, f"ov260rc1/LLM", 2047, False), id="phi3_mini_ov260rc1"),
+    pytest.param((PHI3_MINI, f"ov261rc1/LLM", 2047, False), id="phi3_mini_ov261rc1"),
+    pytest.param((PHI3_MINI, f"ov262/LLM", 2047, False), id="phi3_mini_ov262"),
     # Google-Gemma-2-2B from ov254rc1 onwards (ov253rc1 skipped — known attention_mask shape bug,)
-    pytest.param((GEMMA2_2B, f"{FOLDER}/ov254rc1/LLM", 4096, False), id="gemma2_2b_ov254rc1"),
-    pytest.param((GEMMA2_2B, f"{FOLDER}/ov260rc1/LLM", 4096, False), id="gemma2_2b_ov260rc1"),
-    pytest.param((GEMMA2_2B, f"{FOLDER}/ov261rc1/LLM", 4096, False), id="gemma2_2b_ov261rc1"),
-    pytest.param((GEMMA2_2B, f"{FOLDER}/ov262/LLM", 4096, False), id="gemma2_2b_ov262"),
+    pytest.param((GEMMA2_2B, f"ov254rc1/LLM", 4096, False), id="gemma2_2b_ov254rc1"),
+    pytest.param((GEMMA2_2B, f"ov260rc1/LLM", 4096, False), id="gemma2_2b_ov260rc1"),
+    pytest.param((GEMMA2_2B, f"ov261rc1/LLM", 4096, False), id="gemma2_2b_ov261rc1"),
+    pytest.param((GEMMA2_2B, f"ov262/LLM", 4096, False), id="gemma2_2b_ov262"),
     # Google-Gemma-3-4B: VLM only from ov254rc1 onwards (not present in ov253rc1)
-    pytest.param((GEMMA3_4B, f"{FOLDER}/ov254rc1/VLM", 1024, True), id="gemma3_4b_ov254rc1"),
-    pytest.param((GEMMA3_4B, f"{FOLDER}/ov260rc1/VLM", 1024, True), id="gemma3_4b_ov260rc1"),
-    pytest.param((GEMMA3_4B, f"{FOLDER}/ov261rc1/VLM", 1024, True), id="gemma3_4b_ov261rc1"),
-    pytest.param((GEMMA3_4B, f"{FOLDER}/ov262/VLM", 1024, True), id="gemma3_4b_ov262"),
+    pytest.param((GEMMA3_4B, f"ov254rc1/VLM", 1024, True), id="gemma3_4b_ov254rc1"),
+    pytest.param((GEMMA3_4B, f"ov260rc1/VLM", 1024, True), id="gemma3_4b_ov260rc1"),
+    pytest.param((GEMMA3_4B, f"ov261rc1/VLM", 1024, True), id="gemma3_4b_ov261rc1"),
+    pytest.param((GEMMA3_4B, f"ov262/VLM", 1024, True), id="gemma3_4b_ov262"),
     # Google-Gemma-4-E4B: ov262 only (SWA framework support introduced in ov262)
     pytest.param(("Google-Gemma-4-E4B-it_int4_sym_group-1_dyn_stateful",
-                 f"{FOLDER}/ov262/VLM", 512, True), id="gemma4_e4b_ov262"),
+                 f"ov262/VLM", 512, True), id="gemma4_e4b_ov262"),
     # Google-Gemma-4-E2B: available from ov262 only
     pytest.param(("Google-Gemma-4-E2B-it_int4_sym_group-1_dyn_stateful",
-                 f"{FOLDER}/ov262/VLM", 512, True), id="gemma4_e2b_ov262"),
+                 f"ov262/VLM", 512, True), id="gemma4_e2b_ov262"),
 ]
 
 
@@ -129,11 +126,12 @@ def print_sliding_window_summary():
 
 
 @pytest.fixture
-def sliding_window_model(request, tmp_path):
+def sliding_window_model(request):
     model_name, prefix, window_size, is_vlm = request.param
-    local_model_path = get_model_dir(f"{prefix}/{model_name}")
+    model_dir = get_model_dir(prefix)
+    model_path = os.path.join(model_dir, model_name)
 
-    yield str(local_model_path), window_size, is_vlm
+    yield str(model_path), window_size, is_vlm
 
 
 @pytest.mark.parametrize("sliding_window_model", sliding_window_models, indirect=True)
@@ -205,9 +203,7 @@ def test_sliding_window_accuracy(request, sliding_window_model):
     print()
 
     # Record result for session summary table.
-    _, artifactory_subpath, _, _ = request.node.callspec.params["sliding_window_model"]
-    package = next((p for p in ["ov253rc1", "ov254rc1", "ov260rc1", "ov261rc1", "ov262"]
-                   if p in artifactory_subpath), "unknown")
+    _, package, _, _ = request.node.callspec.params["sliding_window_model"]
     _session_results.append({
         "model": model_name,
         "package": package,

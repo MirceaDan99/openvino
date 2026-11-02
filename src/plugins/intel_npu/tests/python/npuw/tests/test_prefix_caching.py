@@ -226,14 +226,15 @@ def cleanup_memory():
 def validate_environment():
     """Validate test environment is properly set up."""
     try:
-        model_dir = get_model_dir("LLM")
+        model_dir = get_model_dir("ov264rc2/LLM")
         assert os.path.exists(model_dir), f"Model directory does not exist: {model_dir}"
 
         # Check if at least one test model exists
         model_names = get_model_names()
         found_models = []
         for model_name in model_names:
-            model_path = get_model_dir(f"LLM/{model_name}")
+            model_dir = get_model_dir(f"ov264rc2/LLM")
+            model_path = os.path.join(model_dir, model_name)
             if os.path.exists(model_path):
                 found_models.append(model_name)
 
@@ -258,7 +259,8 @@ def test_prefix_caching(max_new_tokens, model_name, validate_environment, cleanu
     print(f"OpenVINO version: {get_version()}")
     print(f"{'=' * 60}")
 
-    model_path = get_model_dir(f"LLM/{model_name}")
+    model_dir = get_model_dir(f"ov264rc2/LLM")
+    model_path = os.path.join(model_dir, model_name)
 
     # Verify model exists
     assert os.path.exists(model_path), f"Model path does not exist: {model_path}"

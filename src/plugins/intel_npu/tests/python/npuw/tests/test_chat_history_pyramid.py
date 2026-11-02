@@ -40,7 +40,8 @@ def get_chat_history_model_name():
 
 
 def get_model_path(model_name):
-    model_path = get_model_dir(f"LLM/{model_name}")
+    model_dir = get_model_dir("ov264rc2/LLM")
+    model_path = os.path.join(model_dir, model_name)
     if not os.path.exists(model_path):
         pytest.skip(f"Model is not available in the package: {model_name}")
     return model_path
@@ -49,7 +50,7 @@ def get_model_path(model_name):
 @pytest.fixture(scope="session")
 def validate_environment():
     try:
-        model_dir = get_model_dir("LLM")
+        model_dir = get_model_dir("ov264rc2/LLM")
         assert os.path.exists(model_dir), f"Model directory does not exist: {model_dir}"
     except Exception as exc:
         pytest.skip(f"Environment validation failed: {exc}")

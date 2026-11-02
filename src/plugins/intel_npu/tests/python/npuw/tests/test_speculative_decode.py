@@ -49,8 +49,10 @@ def test_acc_perf(request, main_model, draft_model, prompt, max_new_tokens):
         pytest.skip("OpenVINO version is too old, Speculative Decode is supported only starting from"
                     " OpenVINO 2025.4.0")
 
-    main_model_path = get_model_dir(f"LLM/{main_model}")
-    draft_model_path = get_model_dir(f"LLM/{draft_model}")
+    main_model_dir = get_model_dir("ov264rc2/LLM")
+    main_model_path = os.path.join(main_model_dir, main_model)
+    draft_model_dir = get_model_dir("ov264rc2/LLM")
+    draft_model_path = os.path.join(draft_model_dir, draft_model)
 
     # Create reference LLM pipeline for main model on NPU:
     main_config = get_npu_llm_properties_for_test()

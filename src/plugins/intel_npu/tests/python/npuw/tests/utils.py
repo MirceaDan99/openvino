@@ -42,12 +42,12 @@ def get_model_dir(subdir=None):
         raise KeyError("NPUW_PACKAGE_MODEL_DIR environment variable is not set!")
 
     if subdir:
-        model_dir = os.path.join(model_dir, glob.glob(model_dir + '/**/*' + subdir + '*/', recursive=True)[0])
+        model_dir = os.path.join(model_dir, subdir)
 
     return model_dir
 
 def get_whisper_model_root():
-    for subdir in ["whisper", "Whisper"]:
+    for subdir in ["ov264rc2/whisper", "ov264rc2/Whisper"]:
         candidate = get_model_dir(subdir)
         if os.path.isdir(candidate):
             return candidate

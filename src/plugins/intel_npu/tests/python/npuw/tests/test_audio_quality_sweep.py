@@ -63,7 +63,7 @@ def check_dependencies():
 @pytest.fixture(scope="module")
 def kokoro_model_dir() -> Path:
     try:
-        tts_model_dir = Path(get_model_dir("TTS"))
+        tts_model_dir = Path(get_model_dir("ov264rc2/TTS"))
     except KeyError as e:
         pytest.skip(str(e))
 
